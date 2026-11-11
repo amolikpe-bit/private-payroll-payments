@@ -7,27 +7,14 @@
     },
     "test": {
       "dependsOn": ["build"],
-      "outputs": ["coverage/**"]
-    },
-    "lint": {
-      "outputs": []
-    },
-    "lint:fix": {
-      "outputs": []
-    },
-    "format": {
       "outputs": []
     },
     "typecheck": {
       "dependsOn": ["^build"],
       "outputs": []
     },
-    "clean": {
+    "lint": {
       "outputs": []
-    },
-    "docs:build": {
-      "dependsOn": ["build"],
-      "outputs": ["docs/api/**"]
     }
   }
 }

@@ -1,28 +1,16 @@
 {
-  "name": "zk-payroll-sdk",
+  "name": "near-subrosa",
   "version": "0.1.0",
   "private": true,
   "packageManager": "npm@10.8.2",
-  "description": "ZK Payroll SDK monorepo",
-  "workspaces": [
-    "packages/*"
-  ],
-  "scripts": {
-    "build": "npm run build -w packages/core",
-    "test": "npm run test -w packages/core",
-    "clean": "npm run clean -w packages/core",
-    "lint": "npm run lint -w packages/core",
-    "lint:fix": "npm run lint:fix -w packages/core",
-    "format": "npm run format -w packages/core",
-    "typecheck": "npm run typecheck -w packages/core",
-    "docs:build": "npm run docs:build -w packages/core",
-    "release:smoke": "npm run build -w packages/core && npm run release:smoke -w packages/core"
+  "workspaces": ["packages/*"],
+  "engines": {
+    "node": ">=22.22.2"
   },
-  "dependencies": {
-    "@stellar/stellar-sdk": "^14.5.0",
-    "axios": "^1.7.0",
-    "snarkjs": "^0.7.5",
-    "stellar-sdk": "^11.0.0"
+  "scripts": {
+    "build": "npm run -w near-subrosa-core build",
+    "typecheck": "npm run -w near-subrosa-core typecheck",
+    "clean": "npm run -w near-subrosa-core clean"
   },
   "devDependencies": {
     "turbo": "^2.0.0"

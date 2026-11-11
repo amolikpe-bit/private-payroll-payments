@@ -1,0 +1,20 @@
+[package]
+name = "subrosa-contract"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+description = "Payroll registry, salary commitments, and payout scheduling for subrosa on NEAR"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "=5.30.1"
+near-sdk-contract-tools = "=4.0.0"
+serde = "1"
+borsh = "1"
+
+[dev-dependencies]
+near-workspaces = "=0.24.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
