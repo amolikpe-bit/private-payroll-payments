@@ -10,6 +10,7 @@
   "scripts": {
     "build": "npm run -w near-subrosa-core build",
     "typecheck": "npm run -w near-subrosa-core typecheck",
+    "test": "npm run -w near-subrosa-core test",
     "clean": "npm run -w near-subrosa-core clean"
   },
   "devDependencies": {

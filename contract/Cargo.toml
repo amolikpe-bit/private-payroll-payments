@@ -16,5 +16,4 @@ serde = "1"
 borsh = "1"
 
 [dev-dependencies]
-near-workspaces = "=0.24.0"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+near-sdk = { version = "=5.30.1", features = ["unit-testing"] }
