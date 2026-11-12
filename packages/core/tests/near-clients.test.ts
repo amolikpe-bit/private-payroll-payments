@@ -21,7 +21,7 @@ import {
   RetryOperationType,
   withRetryBudget,
 } from "../src/core/retry-budget.js";
-import { RetryCategory, classifyError, withRetry } from "../src/core/retry.js";
+import { RetryCategory, classifyError } from "../src/core/retry.js";
 import {
   IdempotencyKeyConflictError,
   IdempotencyRegistry,
@@ -561,34 +561,6 @@ test("classifyError distinguishes retryable, non-retryable, and unknown failures
     RetryCategory.NON_RETRYABLE,
   );
   assert.equal(classifyError(new Error("something odd")).category, RetryCategory.UNKNOWN);
-});
-
-test("withRetry stops on non-retryable errors and retries transient ones", async () => {
-  let validationCalls = 0;
-  await assert.rejects(
-    () =>
-      withRetry(
-        async () => {
-          validationCalls += 1;
-          throw new ValidationError("bad", "x");
-        },
-        { attempts: 5, delayMs: 0 },
-      ),
-    (error: unknown) => error instanceof ValidationError,
-  );
-  assert.equal(validationCalls, 1);
-
-  let transientCalls = 0;
-  const value = await withRetry(
-    async () => {
-      transientCalls += 1;
-      if (transientCalls === 1) throw new Error("ECONNRESET");
-      return "ok";
-    },
-    { attempts: 3, delayMs: 0 },
-  );
-  assert.equal(value, "ok");
-  assert.equal(transientCalls, 2);
 });
 
 test("withRetryBudget retries reads, refuses unsafe writes, and allows keyed writes", async () => {

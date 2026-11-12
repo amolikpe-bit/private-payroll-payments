@@ -73,12 +73,16 @@ import {
   type SignedIntentMessage,
 } from "near-subrosa-core";
 
-const EMPLOYER = "subrosa.testnet";
-const EMPLOYEES = ["alice-demo.testnet", "bob-demo.testnet", "carol-demo.testnet"] as const;
-const AMOUNTS = [1_250_000n, 2_400_000n, 3_100_000n] as const;
-const CYCLE_ID = 1;
+import {
+  AMOUNTS,
+  CYCLE_ID,
+  DEMO_TIMEOUT_MS,
+  EMPLOYEES,
+  EMPLOYER,
+  createSecretScanner,
+} from "./lib/dry-run-harness.ts";
+
 const TOTAL_STAGES = 10;
-const DEMO_TIMEOUT_MS = 30_000;
 const FIXED_CLOCK_MS = Date.parse("2026-01-01T00:00:00.000Z");
 const FIXED_ISO = new Date(FIXED_CLOCK_MS).toISOString();
 const SALT_DOMAIN = "subrosa/w4-dry-run/salt/v1";
@@ -101,15 +105,9 @@ function fail(code: string, message: string): never {
   throw new DryRunError(code, message);
 }
 
-const secrets = new Set<string>();
-
-function assertNoSecrets(text: string): void {
-  for (const secret of secrets) {
-    if (secret.length > 0 && text.includes(secret)) {
-      fail("SECRET_LEAK", "A private value reached dry-run output; refusing to print it.");
-    }
-  }
-}
+const { secrets, assertNoSecrets } = createSecretScanner(() =>
+  fail("SECRET_LEAK", "A private value reached dry-run output; refusing to print it."),
+);
 
 function stage(index: number, title: string, detail: string): void {
   const line = `[${index}/${TOTAL_STAGES}] ${title}: ${detail}`;

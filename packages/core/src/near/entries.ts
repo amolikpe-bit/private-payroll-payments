@@ -12,7 +12,7 @@
  */
 
 import { InvalidResponseError, ValidationError } from "../core/errors.js";
-import { assertNearAccountId, validateNearAccountId } from "../settlement/destination.js";
+import { validateNearAccountId } from "../settlement/destination.js";
 import type {
   CommitmentEntry,
   EmployeeEntry,
@@ -316,9 +316,7 @@ export function parseBoolean(value: unknown, method: string): boolean {
 }
 
 /** Assert helper used by client inputs that are account ids. */
-export function requireAccountId(value: unknown, field: string): string {
-  return assertNearAccountId(value, field);
-}
+export { assertNearAccountId as requireAccountId } from "../settlement/destination.js";
 
 const ASSET_ID_PATTERN = /^(?:(?:nep141|nep245):)?(.+)$/;
 

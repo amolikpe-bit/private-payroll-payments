@@ -71,8 +71,9 @@ npm run numbers -- --capture target/numbers/capture.log --json
 
 The script exits non-zero when `--capture` is omitted, the file is missing or
 empty, the marker line is malformed or conflicting, the JSON shape/price is
-invalid, the storage delta is not 374 B, the gas is not the pinned value, or
-the 50-entry redaction assertion fails.
+invalid, the storage delta is not 374 B, or the gas is not the pinned value.
+The 50-entry batch/redaction checks live in
+`packages/core/tests/numbers-redaction.test.ts` and run with `npm test`.
 
 ### Rerun proof
 
@@ -149,8 +150,8 @@ present: `schema` must be `subrosa/numbers-capture/v1`, `network` must be
 ## 50-entry batch: chunk, resume, and redaction
 
 Step 14(c) asks for a 50-entry batch chunk/resume with zero sensitive values in
-errors. The assertion is local and needs no chain or keys; it runs inside
-`scripts/numbers.ts` before the successful report:
+errors. The assertion is local and needs no chain or keys; it lives in
+`packages/core/tests/numbers-redaction.test.ts` and runs with `npm test`:
 
 1. Builds 50 valid payout entries (unique employee/cycle pairs, 64-hex
    commitment hashes, positive u128 amounts, 32-byte hex salts).
@@ -196,4 +197,4 @@ sandbox chain.
   cost), with no rebate. Storage cost assumes the sandbox price `1e19`
   yoctoNEAR/byte.
 - No wallet, key, RPC endpoint, or funded account is used. The script reads one
-  local capture file and performs the batch/redaction assertions in memory.
+  local capture file only; the moved batch/redaction checks run in `npm test`.

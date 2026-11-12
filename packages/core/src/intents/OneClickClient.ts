@@ -7,7 +7,6 @@
  * in a URL, an error message, or a returned object.
  */
 
-import axios from "axios";
 
 import { ONECLICK_BASE_URL, type NearClientConfig } from "../config.js";
 
@@ -251,13 +250,13 @@ export interface OneClickHttpResponse<T> {
   data: T;
 }
 
-/** Replaceable HTTP transport; tests inject a fake, production uses axios. */
+/** Replaceable HTTP transport; tests inject a fake, production uses fetch. */
 export interface OneClickTransport {
   request<T>(request: OneClickHttpRequest): Promise<OneClickHttpResponse<T>>;
 }
 
 
-class AxiosTransport implements OneClickTransport {
+class FetchTransport implements OneClickTransport {
   readonly #baseUrl: string;
 
   constructor(baseUrl: string) {
@@ -265,18 +264,36 @@ class AxiosTransport implements OneClickTransport {
   }
 
   async request<T>(request: OneClickHttpRequest): Promise<OneClickHttpResponse<T>> {
-    const response = await axios.request<T>({
-      baseURL: this.#baseUrl,
-      url: request.path,
+    const url = new URL(`${this.#baseUrl}${request.path}`);
+    for (const [key, value] of Object.entries(request.query ?? {})) {
+      if (value === undefined) {
+        continue;
+      }
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          url.searchParams.append(key, String(item));
+        }
+      } else {
+        url.searchParams.set(key, String(value));
+      }
+    }
+
+    const response = await fetch(url, {
       method: request.method,
-      headers: request.headers === undefined ? undefined : { ...request.headers },
-      params: request.query === undefined ? undefined : { ...request.query },
-      paramsSerializer: { indexes: null },
-      data: request.body,
-      timeout: request.timeoutMs,
-      validateStatus: () => true,
+      ...(request.headers === undefined ? {} : { headers: { ...request.headers } }),
+      ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+      signal: AbortSignal.timeout(request.timeoutMs ?? 30_000),
     });
-    return { status: response.status, data: response.data };
+    const text = await response.text();
+    let data: unknown;
+    if (text.length > 0) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = text;
+      }
+    }
+    return { status: response.status, data: data as T };
   }
 }
 
@@ -383,7 +400,7 @@ export class OneClickClient {
     const apiKey = configuredKey?.trim();
     this.#baseUrl = baseUrl;
     this.#apiKey = apiKey === undefined || apiKey === "" ? undefined : apiKey;
-    this.#transport = options.transport ?? new AxiosTransport(baseUrl);
+    this.#transport = options.transport ?? new FetchTransport(baseUrl);
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.#tokenCacheTtlMs = options.tokenCacheTtlMs ?? DEFAULT_TOKEN_CACHE_TTL_MS;
     this.#now = options.now ?? Date.now;

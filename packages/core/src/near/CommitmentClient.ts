@@ -7,6 +7,7 @@
  * recomputes the hash locally and compares it to the public on-chain value.
  */
 
+import { MAX_BATCH_SIZE } from "../batch/chunking.js";
 import {
   verifyCommitment as verifyCommitmentHash,
 } from "../crypto/hashUtils.js";
@@ -14,20 +15,19 @@ import type { CommitmentEntry, CommitItem } from "../types.js";
 import type { NearContractWrapper, NearContractCallOptions } from "./NearContractWrapper.js";
 import {
   assertSafeU64,
+  formatNearFromYocto,
   normalizeCommitmentHash,
   parseCommitmentEntry,
   parseCount,
   requireAccountId,
+  storageDepositNear,
 } from "./entries.js";
 import { ValidationError } from "../core/errors.js";
 
 /** Contract cap for one `batch_commit_salaries` call. */
-export const MAX_COMMIT_BATCH_SIZE = 50;
+export const MAX_COMMIT_BATCH_SIZE = MAX_BATCH_SIZE;
 /** Storage bytes charged per commitment record (doc §3.6). */
 export const COMMITMENT_STORAGE_BYTES = 374n;
-
-const YOCTO_PER_NEAR = 10n ** 24n;
-const YOCTO_PER_BYTE = 10n ** 19n;
 
 export interface CommitSalaryArgs {
   employee: string;
@@ -40,19 +40,13 @@ export interface CommitmentBatchResult {
   itemsCommitted: number;
 }
 
-/** Format a yoctoNEAR amount as an exact decimal NEAR string. */
-function formatNearFromYocto(yocto: bigint): string {
-  const whole = yocto / YOCTO_PER_NEAR;
-  const fraction = (yocto % YOCTO_PER_NEAR).toString().padStart(24, "0").replace(/0+$/, "");
-  return fraction.length > 0 ? `${whole}.${fraction}` : whole.toString();
-}
 
 /** Exact storage deposit for `count` commitment records. */
 export function commitmentDepositNear(count: number): string {
   if (!Number.isInteger(count) || count <= 0) {
     throw new ValidationError("Commitment count must be a positive integer.", "count");
   }
-  return formatNearFromYocto(BigInt(count) * COMMITMENT_STORAGE_BYTES * YOCTO_PER_BYTE);
+  return storageDepositNear(count * Number(COMMITMENT_STORAGE_BYTES));
 }
 
 function toCommitItem(item: CommitItem): CommitItem {

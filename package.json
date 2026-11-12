@@ -16,8 +16,5 @@
     "numbers": "npm run build && node scripts/numbers.ts",
     "check:oneclick": "node scripts/check-oneclick-schema.ts",
     "test:relayer": "npm run -w near-subrosa-relayer test"
-  },
-  "devDependencies": {
-    "turbo": "^2.0.0"
   }
 }

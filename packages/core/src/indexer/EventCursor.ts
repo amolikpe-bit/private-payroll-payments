@@ -10,8 +10,8 @@
  * store. The file contains only public chain positions and log ids.
  */
 
-import { randomBytes } from "node:crypto";
-import { chmod, lstat, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, unlink } from "node:fs/promises";
+import { atomicWriteFile } from "../core/atomicWrite.js";
 import { dirname, resolve } from "node:path";
 
 import { SubrosaError } from "../core/errors.js";
@@ -261,15 +261,12 @@ export class EventCursor {
     if (process.platform !== "win32") {
       await chmod(dirname(this.#filePath), DIRECTORY_MODE).catch(() => undefined);
     }
-    const tempPath = `${this.#filePath}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
     try {
-      await writeFile(tempPath, `${JSON.stringify(state)}\n`, { mode: FILE_MODE });
-      await rename(tempPath, this.#filePath);
+      await atomicWriteFile(this.#filePath, `${JSON.stringify(state)}\n`, { mode: FILE_MODE });
       if (process.platform !== "win32") {
         await chmod(this.#filePath, FILE_MODE).catch(() => undefined);
       }
     } catch (error) {
-      await unlink(tempPath).catch(() => undefined);
       throw new EventCursorError("WRITE_FAILED", "Indexer cursor could not be written.", error);
     }
   }

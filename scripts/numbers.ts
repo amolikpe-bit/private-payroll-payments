@@ -1,6 +1,6 @@
 /**
  * W4 numbers pin: measured gross gas and storage for one salary commitment,
- * plus a 50-entry batch chunk/resume redaction assertion.
+ * and its pinned arithmetic.
  *
  * The script consumes a raw capture from the pinned sandbox run on the W4
  * Celesto box. It never invents a value: the capture (a cargo test log line or
@@ -34,31 +34,11 @@
  * developer rebate was removed in nearcore 2.14.0 (HSP-027, PV87), so the
  * claim is gross.
  *
- * The 50-entry assertion is local and needs no chain: it builds 50 valid
- * payout entries, checks the contract cap (50 in one chunk, 51 split), resumes
- * from an opaque token, and asserts that raw amounts, salts, employees, and
- * credentials never survive redaction or error snapshots.
- *
  * Run: npm run numbers -- --capture <path> [--json]
  */
 
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-
-import {
-  BatchPayloadBuilder,
-  MAX_BATCH_SIZE,
-  DEFAULT_REDACTION_REPLACEMENT,
-  createBatchResumeToken,
-  decodeBatchResumeToken,
-  redactDeep,
-  redactError,
-  resolveResumeStart,
-  splitPayoutBatchByContractLimit,
-  validateSafeCredentialUsage,
-  type BatchPaymentEntry,
-} from "near-subrosa-core";
 
 const CAPTURE_MARKER = "W4_CAPTURE";
 const CAPTURE_SCHEMA = "subrosa/numbers-capture/v1";
@@ -81,9 +61,6 @@ const ANSI_ESCAPE = /\u001b\[[0-9;]*m/g;
 const PINNED_GAS_BURNT = 2_353_357_561_394n;
 const PINNED_STORAGE_DELTA_BYTES = 374n;
 
-const REDACTION_BATCH_SIZE = 50;
-const REDACTION_RESUME_BATCH_SIZE = 10;
-const NEAR_SECRET_KEY = `ed25519:${"A".repeat(43)}`;
 
 class NumbersError extends Error {
   constructor(message: string) {
@@ -125,20 +102,6 @@ interface Capture {
   readonly declaredStorageByteCostYocto: bigint | null;
 }
 
-interface RedactionReport {
-  readonly entries: number;
-  readonly chunkSizes: readonly number[];
-  readonly splitSizes: readonly number[];
-  readonly resumeBatchIndex: number;
-  readonly resumeItemsProcessed: number;
-  readonly resumeTotalBatches: number;
-  readonly rawErrors: number;
-  readonly rawWarnings: number;
-  readonly redactedFindings: number;
-  readonly preservedPublicHashes: number;
-  readonly tokenLeaks: number;
-  readonly errorSnapshotLeaks: number;
-}
 
 function check(condition: unknown, message: string): void {
   if (!condition) {
@@ -358,216 +321,6 @@ function validateCapture(capture: Capture): void {
   }
 }
 
-function sampleEntry(index: number): BatchPaymentEntry {
-  return {
-    employee: `employee-${index.toString().padStart(2, "0")}.testnet`,
-    commitment_hash: createHash("sha256")
-      .update(`subrosa/numbers/commitment/${index}`, "utf8")
-      .digest("hex"),
-    cycle_id: index + 1,
-    amount: 1_000_000_000_000n + BigInt(index) * 7n,
-    salt: createHash("sha256").update(`subrosa/numbers/salt/${index}`, "utf8").digest("hex"),
-    asset: "usdc.testnet",
-    memo: `cycle-${index}`,
-  };
-}
-
-function assertBatchRedaction(): RedactionReport {
-  check(
-    MAX_BATCH_SIZE === REDACTION_BATCH_SIZE,
-    `SDK batch cap is ${MAX_BATCH_SIZE}; the numbers pin expects 50`,
-  );
-
-  const entries = Array.from({ length: REDACTION_BATCH_SIZE }, (_value, index) =>
-    sampleEntry(index),
-  );
-  const payload = new BatchPayloadBuilder().addMany(entries).build();
-  check(payload.entries.length === REDACTION_BATCH_SIZE, "50-entry batch did not build");
-  check(payload.totalAmount > 0n, "50-entry batch total amount must be positive");
-
-  const atCap = splitPayoutBatchByContractLimit(entries);
-  check(
-    atCap.errors.length === 0,
-    `50-entry batch failed validation: ${JSON.stringify(atCap.errors)}`,
-  );
-  check(
-    atCap.chunks.length === 1,
-    `50 entries must fit one contract chunk, got ${atCap.chunks.length}`,
-  );
-  check(atCap.chunks[0].length === REDACTION_BATCH_SIZE, "contract chunk is not 50 entries");
-
-  const overCap = entries.concat(sampleEntry(REDACTION_BATCH_SIZE));
-  const split = splitPayoutBatchByContractLimit(overCap);
-  check(
-    split.errors.length === 0,
-    `51-entry batch failed validation: ${JSON.stringify(split.errors)}`,
-  );
-  check(
-    split.chunks.length === 2 &&
-      split.chunks[0].length === REDACTION_BATCH_SIZE &&
-      split.chunks[1].length === 1,
-    `51 entries must split 50+1, got ${split.chunks.map((chunk) => chunk.length).join("+")}`,
-  );
-  check(split.wasSplit, "51-entry batch must report wasSplit");
-
-  const totalBatches = Math.ceil(entries.length / REDACTION_RESUME_BATCH_SIZE);
-  const token = createBatchResumeToken(
-    entries,
-    2,
-    2 * REDACTION_RESUME_BATCH_SIZE,
-    totalBatches,
-    REDACTION_RESUME_BATCH_SIZE,
-  );
-  const checkpoint = decodeBatchResumeToken(token);
-  check(checkpoint.totalItems === REDACTION_BATCH_SIZE, "resume token totalItems is not 50");
-  check(checkpoint.totalBatches === totalBatches, "resume token totalBatches is not 5");
-  check(
-    checkpoint.batchSize === REDACTION_RESUME_BATCH_SIZE,
-    "resume token batchSize is not 10",
-  );
-  check(/^[0-9a-f]{64}$/.test(checkpoint.entriesCommitment), "resume commitment is not 64-hex");
-
-  const start = resolveResumeStart(entries, REDACTION_RESUME_BATCH_SIZE, token);
-  check(start.startBatchIndex === 2, "resume start batch index is not 2");
-  check(start.itemsAlreadyProcessed === 20, "resume start item count is not 20");
-
-  const privatePayload = {
-    employer: "acme.testnet",
-    entries,
-    meta: {
-      witnessSecret: "witness-secret-material",
-      privateKey: NEAR_SECRET_KEY,
-    },
-  };
-  const privateValues: string[] = [
-    NEAR_SECRET_KEY,
-    privatePayload.meta.witnessSecret,
-    ...entries.flatMap((item) => [item.employee, item.amount.toString(), item.salt]),
-  ];
-
-  let tokenLeaks = 0;
-  for (const value of privateValues) {
-    if (token.includes(value)) {
-      tokenLeaks += 1;
-    }
-  }
-  check(tokenLeaks === 0, "resume token contains a private value");
-
-  const rawScan = validateSafeCredentialUsage(privatePayload, { context: "logging" });
-  check(!rawScan.safe, "raw 50-entry batch must be flagged as unsafe");
-  const rawErrors = rawScan.findings.filter((finding) => finding.severity === "error").length;
-  const rawWarnings = rawScan.findings.filter((finding) => finding.severity === "warning").length;
-  check(rawErrors >= 50, `raw scan found ${rawErrors} errors; expected salts/keys to be flagged`);
-  check(rawWarnings >= 100, `raw scan found ${rawWarnings} warnings; expected amounts and salts`);
-
-  const replaced = redactDeep(privatePayload);
-  const replacedJson = JSON.stringify(replaced.redacted);
-  for (const value of privateValues) {
-    check(
-      !replacedJson.includes(value),
-      `default redaction leaked a private value (${value.slice(0, 8)}...)`,
-    );
-  }
-  check(
-    replaced.fieldsRedacted.includes("employee") &&
-      replaced.fieldsRedacted.includes("amount") &&
-      replaced.fieldsRedacted.includes("salt") &&
-      replaced.fieldsRedacted.includes("witnessSecret") &&
-      replaced.fieldsRedacted.includes("privateKey"),
-    `default redaction did not report every sensitive field: ${replaced.fieldsRedacted.join(", ")}`,
-  );
-  const replacedRecord = asRecord(replaced.redacted, "redacted payload");
-  const replacedEntries = replacedRecord.entries;
-  check(
-    Array.isArray(replacedEntries) && replacedEntries.length === 50,
-    "redacted batch lost entries",
-  );
-  const firstReplaced = asRecord((replacedEntries as unknown[])[0], "redacted entry");
-  check(
-    firstReplaced.employee === DEFAULT_REDACTION_REPLACEMENT &&
-      firstReplaced.amount === DEFAULT_REDACTION_REPLACEMENT &&
-      firstReplaced.salt === DEFAULT_REDACTION_REPLACEMENT &&
-      firstReplaced.commitment_hash === entries[0].commitment_hash &&
-      firstReplaced.asset === "usdc.testnet",
-    "default redaction snapshot changed (sensitive fields or public fields moved)",
-  );
-
-  const preservedPublicHashes = entries.filter((item) =>
-    replacedJson.includes(item.commitment_hash),
-  ).length;
-  check(
-    preservedPublicHashes === 50,
-    `only ${preservedPublicHashes}/50 public commitment hashes survived`,
-  );
-
-  const removed = redactDeep(privatePayload, { mode: "remove" });
-  const removedJson = JSON.stringify(removed.redacted);
-  for (const value of privateValues) {
-    check(
-      !removedJson.includes(value),
-      `remove-mode redaction leaked a private value (${value.slice(0, 8)}...)`,
-    );
-  }
-  check(
-    !/"employee"|"amount"|"salt"|"witnessSecret"|"privateKey"/.test(removedJson),
-    "remove-mode redaction left a sensitive key",
-  );
-  const removedScan = validateSafeCredentialUsage(removed.redacted, { context: "logging" });
-  check(
-    removedScan.safe,
-    `redacted 50-entry batch still has findings: ${JSON.stringify(removedScan.findings)}`,
-  );
-
-  const victim = entries[0];
-  const rawMessage =
-    `batch commit failed for employee=${victim.employee} amount=${victim.amount} ` +
-    `salt=${victim.salt} signer=${NEAR_SECRET_KEY}`;
-  const rawError = Object.assign(new Error(rawMessage), {
-    context: { entries, meta: privatePayload.meta },
-  });
-  rawError.stack = `Error: ${rawMessage}\n    at submitBatch (safeBatchSubmitter.ts:1:1)`;
-  const sanitized = redactError(rawError);
-  const sanitizedSurface = [
-    sanitized.message,
-    sanitized.stack ?? "",
-    JSON.stringify(sanitized),
-  ].join("\n");
-
-  let errorSnapshotLeaks = 0;
-  for (const value of [
-    victim.employee,
-    victim.amount.toString(),
-    victim.salt,
-    NEAR_SECRET_KEY,
-    privatePayload.meta.witnessSecret,
-  ]) {
-    if (sanitizedSurface.includes(value)) {
-      errorSnapshotLeaks += 1;
-    }
-  }
-  check(errorSnapshotLeaks === 0, "redacted error snapshot leaked a private value");
-  check(
-    sanitizedSurface.includes(DEFAULT_REDACTION_REPLACEMENT),
-    "redacted error snapshot did not apply the default replacement",
-  );
-  check(rawError.message.includes(victim.salt), "redactError mutated the source error");
-
-  return {
-    entries: entries.length,
-    chunkSizes: atCap.chunks.map((chunk) => chunk.length),
-    splitSizes: split.chunks.map((chunk) => chunk.length),
-    resumeBatchIndex: start.startBatchIndex,
-    resumeItemsProcessed: start.itemsAlreadyProcessed,
-    resumeTotalBatches: totalBatches,
-    rawErrors,
-    rawWarnings,
-    redactedFindings: removedScan.findings.length,
-    preservedPublicHashes,
-    tokenLeaks,
-    errorSnapshotLeaks,
-  };
-}
-
 function groupDigits(value: bigint): string {
   const digits = value.toString();
   let grouped = "";
@@ -602,7 +355,7 @@ function formatCaptureSource(capture: Capture): string {
   return metadata.length === 0 ? capture.format : `${capture.format}; ${metadata.join(", ")}`;
 }
 
-function printReport(capturePath: string, capture: Capture, redaction: RedactionReport): void {
+function printReport(capturePath: string, capture: Capture): void {
   const storageCostYocto = capture.storageDeltaBytes * YOCTO_NEAR_PER_BYTE;
 
   console.log("subrosa W4 numbers pin — measured, gross gas (no rebate)");
@@ -626,32 +379,10 @@ function printReport(capturePath: string, capture: Capture, redaction: Redaction
     "  accounting:      gross only; the 30% developer gas rebate was removed in nearcore 2.14.0",
   );
   console.log("");
-  console.log("50-entry batch (chunk/resume + redaction):");
-  console.log(
-    `  contract cap:    ${redaction.chunkSizes.join(" + ")} entries in one chunk; ` +
-      `51 entries split ${redaction.splitSizes.join(" + ")}`,
-  );
-  console.log(
-    `  resume:          ${redaction.resumeTotalBatches} batches of ` +
-      `${REDACTION_RESUME_BATCH_SIZE}; checkpoint resolves to batch ` +
-      `${redaction.resumeBatchIndex} with ${redaction.resumeItemsProcessed} items processed`,
-  );
-  console.log(
-    `  raw payload:     ${redaction.rawErrors} error(s), ${redaction.rawWarnings} warning(s)`,
-  );
-  console.log(
-    `  redacted:        ${redaction.redactedFindings} finding(s); ` +
-      `${redaction.preservedPublicHashes}/50 public commitment hashes preserved`,
-  );
-  console.log(
-    `  error snapshot:  ${redaction.errorSnapshotLeaks} leak(s); ` +
-      `${redaction.tokenLeaks} resume-token leak(s)`,
-  );
-  console.log("");
   console.log("OK: capture matches the pinned claim in NUMBERS.md.");
 }
 
-function printJsonReport(capturePath: string, capture: Capture, redaction: RedactionReport): void {
+function printJsonReport(capturePath: string, capture: Capture): void {
   const storageCostYocto = capture.storageDeltaBytes * YOCTO_NEAR_PER_BYTE;
   const report = {
     schema: REPORT_SCHEMA,
@@ -678,20 +409,6 @@ function printJsonReport(capturePath: string, capture: Capture, redaction: Redac
     accounting: {
       gross: true,
       rebate: "none",
-    },
-    batch_redaction: {
-      entries: redaction.entries,
-      chunk_sizes: redaction.chunkSizes,
-      split_sizes: redaction.splitSizes,
-      resume_batch_index: redaction.resumeBatchIndex,
-      resume_items_processed: redaction.resumeItemsProcessed,
-      resume_total_batches: redaction.resumeTotalBatches,
-      raw_errors: redaction.rawErrors,
-      raw_warnings: redaction.rawWarnings,
-      redacted_findings: redaction.redactedFindings,
-      preserved_public_hashes: redaction.preservedPublicHashes,
-      token_leaks: redaction.tokenLeaks,
-      error_snapshot_leaks: redaction.errorSnapshotLeaks,
     },
   };
   console.log(JSON.stringify(report, null, 2));
@@ -778,12 +495,11 @@ function main(): void {
 
   const capture = loadCapture(options.capturePath);
   validateCapture(capture);
-  const redaction = assertBatchRedaction();
 
   if (options.json) {
-    printJsonReport(options.capturePath, capture, redaction);
+    printJsonReport(options.capturePath, capture);
   } else {
-    printReport(options.capturePath, capture, redaction);
+    printReport(options.capturePath, capture);
   }
 }
 

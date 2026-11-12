@@ -57,12 +57,16 @@ import {
   type TokenResponse,
 } from "near-subrosa-core";
 
-const EMPLOYER = "subrosa.testnet";
-const EMPLOYEES = ["alice-demo.testnet", "bob-demo.testnet", "carol-demo.testnet"] as const;
-const AMOUNTS = [1_250_000n, 2_400_000n, 3_100_000n] as const;
-const CYCLE_ID = 1;
+import {
+  AMOUNTS,
+  CYCLE_ID,
+  DEMO_TIMEOUT_MS,
+  EMPLOYEES,
+  EMPLOYER,
+  createSecretScanner,
+} from "./lib/dry-run-harness.ts";
+
 const TOTAL_STAGES = 9;
-const DEMO_TIMEOUT_MS = 30_000;
 const USDC_NEAR_CONTRACTS = [
   "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
   "usdc.near",
@@ -82,15 +86,9 @@ function fail(code: string, message: string): never {
   throw new DemoError(code, message);
 }
 
-const secrets = new Set<string>();
-
-function assertNoSecrets(text: string): void {
-  for (const secret of secrets) {
-    if (secret.length > 0 && text.includes(secret)) {
-      fail("SECRET_LEAK", "A private value reached demo output; refusing to print it.");
-    }
-  }
-}
+const { secrets, assertNoSecrets } = createSecretScanner(() =>
+  fail("SECRET_LEAK", "A private value reached demo output; refusing to print it."),
+);
 
 function stage(index: number, title: string, detail: string): void {
   const line = `[${index}/${TOTAL_STAGES}] ${title}: ${detail}`;

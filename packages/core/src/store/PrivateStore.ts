@@ -11,16 +11,8 @@
  * because a quote's deposit address is needed to correlate the private receipt.
  */
 
-import { randomBytes } from "node:crypto";
-import {
-  chmod,
-  lstat,
-  mkdir,
-  readFile,
-  rename,
-  unlink,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, unlink } from "node:fs/promises";
+import { atomicWriteFile } from "../core/atomicWrite.js";
 import { dirname, resolve } from "node:path";
 
 import type { PendingPayout } from "../types.js";
@@ -360,13 +352,10 @@ export class PrivateStore {
     await this.#enforceDirectoryMode(directory);
 
     const payload = `${JSON.stringify(state, null, 2)}\n`;
-    const tempPath = `${this.#filePath}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`;
     try {
-      await writeFile(tempPath, payload, { encoding: "utf8", mode: FILE_MODE, flag: "wx" });
-      await rename(tempPath, this.#filePath);
+      await atomicWriteFile(this.#filePath, payload, { mode: FILE_MODE });
       await this.#enforceFileMode();
     } catch (error) {
-      await unlink(tempPath).catch(() => undefined);
       if (error instanceof PrivateStoreError) {
         throw error;
       }
