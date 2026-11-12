@@ -379,10 +379,14 @@ export function sanitizeForPersistence<T>(
         continue;
       }
 
-      if (typeof nested === "string" && detectCredentialType(nested, key)) {
-        if (!removeSecrets) {
-          copy[key] = secretReplacement;
+      if (typeof nested === "string") {
+        if (detectCredentialType(nested, key)) {
+          if (!removeSecrets) {
+            copy[key] = secretReplacement;
+          }
+          continue;
         }
+        copy[key] = nested;
         continue;
       }
 

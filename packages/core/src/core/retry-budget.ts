@@ -131,6 +131,18 @@ export class RetryBudgetExhaustedError extends SubrosaError {
   }
 }
 
+/** Thrown when a caller aborts a retry sequence. */
+export class RetryCancelledError extends SubrosaError {
+  constructor(
+    message: string,
+    public readonly operationType: RetryOperationType,
+    cause?: unknown,
+  ) {
+    super(message, RETRY_CANCELLED_CODE, { operationType }, cause);
+    this.name = "RetryCancelledError";
+  }
+}
+
 function abortableSleep(
   ms: number,
   signal: AbortSignal | undefined,
@@ -171,8 +183,23 @@ function abortableSleep(
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }
-
+type AttemptResult<T> = { timedOut: true } | { timedOut: false; value: T };
 type SleepFn = (ms: number, signal?: AbortSignal) => Promise<void>;
+
+/** Options accepted by {@link withRetryBudget}. */
+export interface WithRetryBudgetOptions<T> {
+  operationType?: RetryOperationType;
+  budgets?: RetryBudgetByOperation;
+  budget?: Partial<RetryBudgetConfig>;
+  idempotencyKey?: string;
+  registry?: IdempotencyRegistry<T>;
+  attemptTimeoutMs?: number;
+  signal?: AbortSignal;
+  now?: () => number;
+  sleep?: SleepFn;
+  random?: () => number;
+  onRetry?: (attempt: number, error: unknown, decision: RetryDecision) => void;
+}
 function runAttemptWithTimeout<T>(
   invoke: () => Promise<T>,
   attemptTimeoutMs: number | undefined,

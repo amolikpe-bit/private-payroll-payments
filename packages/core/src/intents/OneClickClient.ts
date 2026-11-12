@@ -990,8 +990,10 @@ function parseToken(value: unknown, index: number): TokenResponse {
     symbol: record.symbol,
     price: typeof record.price === "number" && Number.isFinite(record.price) ? record.price : 0,
     priceUpdatedAt: typeof record.priceUpdatedAt === "string" ? record.priceUpdatedAt : "",
-    contractAddress: typeof record.contractAddress === "string" ? record.contractAddress : undefined,
-    coingeckoId: typeof record.coingeckoId === "string" ? record.coingeckoId : undefined,
+    ...(typeof record.contractAddress === "string"
+      ? { contractAddress: record.contractAddress }
+      : {}),
+    ...(typeof record.coingeckoId === "string" ? { coingeckoId: record.coingeckoId } : {}),
   };
 }
 
@@ -1016,7 +1018,7 @@ function parseGeneratedIntent(value: unknown): GeneratedIntent {
       message: payload.message,
       nonce: payload.nonce,
       recipient: payload.recipient,
-      callbackUrl: typeof payload.callbackUrl === "string" ? payload.callbackUrl : undefined,
+      ...(typeof payload.callbackUrl === "string" ? { callbackUrl: payload.callbackUrl } : {}),
     },
   };
 }

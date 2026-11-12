@@ -10,6 +10,7 @@ target/
 !.env.example
 .subrosa/
 *.log
+*.exit
 .DS_Store
 .idea/
 .vscode/

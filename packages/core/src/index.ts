@@ -9,7 +9,6 @@ export * from "./core/idempotency.js";
 export * from "./crypto/hashUtils.js";
 
 export * from "./near/index.js";
-export * from "./near/entries.js";
 
 export * from "./batch/index.js";
 export * from "./payroll/index.js";

@@ -171,7 +171,7 @@ export class NearContractWrapper {
 
     // near-api-js has already JSON-decoded the result; `T` is the contract
     // method's declared result type.
-    return raw as T;
+    return (raw ?? null) as T;
   }
 
   /**
