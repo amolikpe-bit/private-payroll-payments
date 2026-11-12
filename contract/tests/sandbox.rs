@@ -690,20 +690,37 @@ async fn sandbox_registry_commitments_and_pause() {
         .await,
         "Requires attached deposit",
     );
-    expect_success(
-        call_with(
-            &fixture.employer,
-            &fixture.contract,
-            "commit_salary",
-            json!({
-                "employee": employee_a.id().to_string(),
-                "commitment_hash": commitment(0xb1),
-                "cycle_id": 1,
-            }),
-            commitment_deposit(1),
-            Gas::from_tgas(DEFAULT_GAS_TGAS),
-        )
-        .await,
+    let commit_storage_before = fixture
+        .contract
+        .view_account()
+        .await
+        .expect("contract account before commit")
+        .storage_usage;
+    let commit_outcome = call_with(
+        &fixture.employer,
+        &fixture.contract,
+        "commit_salary",
+        json!({
+            "employee": employee_a.id().to_string(),
+            "commitment_hash": commitment(0xb1),
+            "cycle_id": 1,
+        }),
+        commitment_deposit(1),
+        Gas::from_tgas(DEFAULT_GAS_TGAS),
+    )
+    .await;
+    let commitment_gas_burnt = commit_outcome.total_gas_burnt.as_gas();
+    expect_success(commit_outcome);
+    let commit_storage_after = fixture
+        .contract
+        .view_account()
+        .await
+        .expect("contract account after commit")
+        .storage_usage;
+    eprintln!(
+        "W4_CAPTURE commitment_gas_burnt={commitment_gas_burnt} \
+         commitment_storage_delta={}",
+        commit_storage_after.saturating_sub(commit_storage_before)
     );
     let stored: CommitmentEntry = view::<Option<CommitmentEntry>>(
         &fixture.contract,

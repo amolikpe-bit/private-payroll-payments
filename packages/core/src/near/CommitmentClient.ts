@@ -24,7 +24,7 @@ import { ValidationError } from "../core/errors.js";
 /** Contract cap for one `batch_commit_salaries` call. */
 export const MAX_COMMIT_BATCH_SIZE = 50;
 /** Storage bytes charged per commitment record (doc §3.6). */
-export const COMMITMENT_STORAGE_BYTES = 182n;
+export const COMMITMENT_STORAGE_BYTES = 374n;
 
 const YOCTO_PER_NEAR = 10n ** 24n;
 const YOCTO_PER_BYTE = 10n ** 19n;

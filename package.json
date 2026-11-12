@@ -13,6 +13,7 @@
     "test": "npm run -w near-subrosa-core test",
     "clean": "npm run -w near-subrosa-core clean",
     "demo": "npm run build && node scripts/demo.ts",
+    "numbers": "npm run build && node scripts/numbers.ts",
     "check:oneclick": "node scripts/check-oneclick-schema.ts",
     "test:relayer": "npm run -w near-subrosa-relayer test"
   },

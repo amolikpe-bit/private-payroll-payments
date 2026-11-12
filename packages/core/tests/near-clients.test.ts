@@ -347,7 +347,7 @@ test("CommitmentClient maps commit args and chunks batch commits at 50 with depo
   );
   assert.deepEqual(
     batchCalls.map((call) => call.deposit),
-    [nearToYocto("0.091"), nearToYocto("0.091"), nearToYocto("0.0364")],
+    [nearToYocto("0.187"), nearToYocto("0.187"), nearToYocto("0.0748")],
   );
   for (const call of batchCalls) {
     assert.equal(call.methodName, "batch_commit_salaries");

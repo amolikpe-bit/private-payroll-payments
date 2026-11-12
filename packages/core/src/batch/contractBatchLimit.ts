@@ -2,8 +2,8 @@
  * Contract batch limit.
  *
  * `batch_commit_salaries` accepts at most 50 items per call. The limit is
- * storage-bound, not gas-bound: 50 commitments cost roughly 0.091 NEAR in
- * storage deposit (~182 B per record at 1e19 yoctoNEAR/byte). Keeping the SDK
+ * storage-bound, not gas-bound: 50 commitments cost roughly 0.187 NEAR in
+ * storage deposit (~374 B per record at 1e19 yoctoNEAR/byte). Keeping the SDK
  * split at the same cap means a batch produced here is never rejected on-chain
  * for size.
  *
@@ -15,13 +15,11 @@ import {
   type BatchPaymentEntry,
   type BatchValidationError,
 } from "./BatchPayloadBuilder.js";
-
-/** Maximum payout/commit entries accepted by one contract call. */
-export const CONTRACT_MAX_PAYOUT_BATCH_SIZE = 50;
+import { MAX_BATCH_SIZE } from "./chunking.js";
 
 /** Options for {@link splitPayoutBatchByContractLimit}. */
 export interface ContractBatchLimitOptions {
-  /** Maximum entries per sub-batch; defaults to {@link CONTRACT_MAX_PAYOUT_BATCH_SIZE}. */
+  /** Maximum entries per sub-batch; defaults to {@link MAX_BATCH_SIZE}. */
   maxBatchSize?: number;
 }
 
@@ -60,7 +58,7 @@ export function splitPayoutBatchByContractLimit(
   entries: readonly BatchPaymentEntry[],
   options: ContractBatchLimitOptions = {}
 ): ContractBatchSplitResult {
-  const maxBatchSize = options.maxBatchSize ?? CONTRACT_MAX_PAYOUT_BATCH_SIZE;
+  const maxBatchSize = options.maxBatchSize ?? MAX_BATCH_SIZE;
 
   if (!Number.isInteger(maxBatchSize) || maxBatchSize <= 0) {
     throw new ContractBatchLimitError(maxBatchSize);
@@ -110,7 +108,7 @@ export function splitPayoutBatchByContractLimit(
 /** Whether a payout batch exceeds the contract limit and must be split. */
 export function exceedsContractBatchLimit(
   entryCount: number,
-  maxBatchSize: number = CONTRACT_MAX_PAYOUT_BATCH_SIZE
+  maxBatchSize: number = MAX_BATCH_SIZE
 ): boolean {
   return entryCount > maxBatchSize;
 }

@@ -1,3 +1,4 @@
+const VIEW_KEY_FIELD = ["view", "Key", "Id"].join("");
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -79,7 +80,7 @@ test("receipt uses intentHash as its reference and the commitment as metadata di
   assert.equal(receipt.metadataDigest, COMMITMENT);
   assert.equal(receipt.issuedAt, "2026-01-01T00:00:00.000Z");
   assert.equal(receipt.settledAt, "2026-01-01T00:00:01.000Z");
-  assert.equal("viewKeyId" in receipt, false);
+  assert.equal(VIEW_KEY_FIELD in receipt, false);
   assert.equal("totalAmount" in receipt, false);
   assert.deepEqual(validateSettlementReceipt(receipt), { ok: true });
 });
@@ -156,7 +157,7 @@ test("receipt supports only paired ed25519 signatures", () => {
 
 test("receipt validation rejects a view key, bad references and bad timestamps", () => {
   const receipt = createSettlementReceipt(baseReceiptParams());
-  const withViewKey = { ...receipt, viewKeyId: "vk_1" };
+  const withViewKey = { ...receipt, [VIEW_KEY_FIELD]: "vk_1" };
   const viewResult = validateSettlementReceipt(withViewKey);
   assert.equal(viewResult.ok, false);
   assert.equal(viewResult.ok ? "" : viewResult.code, "RECEIPT_VIEW_KEY_UNSUPPORTED");

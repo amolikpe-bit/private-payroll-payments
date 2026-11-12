@@ -12,10 +12,13 @@ import {
   type BatchValidationError,
 } from "./BatchPayloadBuilder.js";
 
+/** Contract cap for one `batch_commit_salaries` call. */
+export const MAX_BATCH_SIZE = 50;
+
 /** Chunking configuration. */
 export interface ChunkingOptions {
   /** Maximum number of entries per batch chunk. Must be a positive integer. */
-  maxBatchSize: number;
+  maxBatchSize?: number;
 }
 
 /** Result of {@link chunkPayoutBatches}. */
@@ -37,7 +40,8 @@ export function chunkPayoutBatches(
   entries: readonly BatchPaymentEntry[],
   options: ChunkingOptions
 ): ChunkedBatchResult {
-  if (!Number.isInteger(options.maxBatchSize) || options.maxBatchSize <= 0) {
+  const maxBatchSize = options.maxBatchSize ?? MAX_BATCH_SIZE;
+  if (!Number.isInteger(maxBatchSize) || maxBatchSize <= 0) {
     throw new Error("Invalid maxBatchSize: must be a positive integer.");
   }
 
@@ -60,8 +64,8 @@ export function chunkPayoutBatches(
   }
 
   const chunks: BatchPaymentEntry[][] = [];
-  for (let index = 0; index < entries.length; index += options.maxBatchSize) {
-    chunks.push(entries.slice(index, index + options.maxBatchSize));
+  for (let index = 0; index < entries.length; index += maxBatchSize) {
+    chunks.push(entries.slice(index, index + maxBatchSize));
   }
 
   return { chunks, errors: [] };

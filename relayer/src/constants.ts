@@ -22,7 +22,7 @@ export const YOCTO_PER_BYTE = 10n ** 19n;
 
 /** Runtime record sizes from the contract's documented storage model. */
 export const EMPLOYEE_RECORD_BYTES = 567n;
-export const COMMITMENT_RECORD_BYTES = 182n;
+export const COMMITMENT_RECORD_BYTES = 374n;
 /** `batch_commit_salaries` cap (`MAX_BATCH_COMMITS` in the contract). */
 export const MAX_BATCH_COMMITS = 50;
 

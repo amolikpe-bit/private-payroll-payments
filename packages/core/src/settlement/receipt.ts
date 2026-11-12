@@ -195,10 +195,22 @@ export function validateSettlementReceipt(receipt: unknown): SettlementReceiptVa
     return invalid(ReceiptErrorCode.SHAPE_INVALID, "Settlement receipt must be an object.");
   }
   const record = receipt as Record<string, unknown>;
-  if ("viewKeyId" in record) {
+  const allowed = new Set([
+    "receiptId",
+    "payrollId",
+    "settlementStatus",
+    "transactionReference",
+    "metadataDigest",
+    "complianceHash",
+    "signature",
+    "signerPublicKey",
+    "issuedAt",
+    "settledAt",
+  ]);
+  if (Object.keys(record).some((key) => !allowed.has(key))) {
     return invalid(
       ReceiptErrorCode.VIEW_KEY_UNSUPPORTED,
-      "Settlement receipts do not support view-key identifiers.",
+      "Settlement receipts do not support view-key identifiers or unknown fields.",
     );
   }
   if (!isValidReceiptId(record.receiptId)) {

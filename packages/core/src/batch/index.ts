@@ -35,11 +35,10 @@ export type {
   DuplicateGroup,
 } from "./deduplication.js";
 
-export { chunkPayoutBatches } from "./chunking.js";
+export { MAX_BATCH_SIZE, chunkPayoutBatches } from "./chunking.js";
 export type { ChunkedBatchResult, ChunkingOptions } from "./chunking.js";
 
 export {
-  CONTRACT_MAX_PAYOUT_BATCH_SIZE,
   ContractBatchLimitError,
   exceedsContractBatchLimit,
   splitPayoutBatchByContractLimit,

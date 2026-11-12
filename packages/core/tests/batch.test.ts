@@ -10,7 +10,7 @@ import { describe, it } from "node:test";
 import {
   BatchPayloadBuilder,
   BatchValidationFailedError,
-  CONTRACT_MAX_PAYOUT_BATCH_SIZE,
+  MAX_BATCH_SIZE,
   ResumableBatchManager,
   chunkPayoutBatches,
   computeBatchEntriesCommitment,
@@ -219,7 +219,7 @@ describe("chunkPayoutBatches", () => {
 describe("contract batch limit", () => {
   it("splits above the contract cap and leaves smaller batches intact", () => {
     const big = splitPayoutBatchByContractLimit(uniqueEntries(120));
-    assert.equal(CONTRACT_MAX_PAYOUT_BATCH_SIZE, 50);
+    assert.equal(MAX_BATCH_SIZE, 50);
     assert.equal(big.wasSplit, true);
     assert.deepEqual(
       big.chunks.map((chunk) => chunk.length),

@@ -11,7 +11,7 @@
 //! Every method that creates a storage record is `#[payable]` and requires an
 //! attached deposit of at least `record_bytes * env::storage_byte_cost()`.
 //! The documented record sizes are [`EMPLOYEE_RECORD_BYTES`] (567 B),
-//! [`COMMITMENT_RECORD_BYTES`] (182 B), [`PAYOUT_RECORD_BYTES`] (258 B),
+//! [`COMMITMENT_RECORD_BYTES`] (374 B), [`PAYOUT_RECORD_BYTES`] (258 B),
 //! [`HOLD_RECORD_BYTES`] (186 B) and [`NULLIFIER_RECORD_BYTES`] (73 B); a batch
 //! commit requires `items.len() * COMMITMENT_RECORD_BYTES`. The deposit is
 //! **retained by the contract**: there is no refund path, and any surplus is
@@ -45,7 +45,7 @@ mod tests;
 /// Runtime size of one registry row, in bytes (see `CONSTANTS.md`).
 pub const EMPLOYEE_RECORD_BYTES: u64 = 567;
 /// Runtime size of one salary commitment row, in bytes.
-pub const COMMITMENT_RECORD_BYTES: u64 = 182;
+pub const COMMITMENT_RECORD_BYTES: u64 = 374;
 /// Runtime size of one scheduled payout row, in bytes.
 pub const PAYOUT_RECORD_BYTES: u64 = 258;
 /// Runtime size of one audit hold row, in bytes.

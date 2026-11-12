@@ -30,9 +30,9 @@ import { isJsonObject } from "./jsonObject.js";
 const { Social } = nearSocial;
 
 /** SocialDB contract account. */
-export const SOCIAL_CONTRACT_ID = "social.near";
+export const SOCIAL_DB_ACCOUNT = "social.near";
 /** SocialDB testnet contract account. */
-export const SOCIAL_TESTNET_CONTRACT_ID = "v1.social08.testnet";
+export const SOCIAL_DB_TESTNET_ACCOUNT = "v1.social08.testnet";
 /** FastData receiver account (no contract, on purpose). */
 export const FASTDATA_ACCOUNT_ID = "social";
 /** FastData method name. */
@@ -287,7 +287,7 @@ export class SocialAuditWriter {
       new Social({
         contractId:
           options.contractId ??
-          (options.network === "testnet" ? SOCIAL_TESTNET_CONTRACT_ID : SOCIAL_CONTRACT_ID),
+          (options.network === "testnet" ? SOCIAL_DB_TESTNET_ACCOUNT : SOCIAL_DB_ACCOUNT),
         network: options.network ?? "mainnet",
         ...(options.apiServer === undefined ? {} : { apiServer: options.apiServer }),
         ...(options.near === undefined ? {} : { near: options.near }),
