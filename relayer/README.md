@@ -44,7 +44,7 @@ hold the regular access key that signed it.
 | Inner actions | exactly one `FunctionCall` |
 | Methods | `register_employee`, `commit_salary`, `batch_commit_salaries` |
 | Gas | ≤ 100 TGas (register/commit), ≤ 300 TGas (batch) |
-| Deposit | exactly the contract's storage deposit: `267 B + metadata bytes` (register, metadata ≤ 256 B), 182 B (commit), `items × 182 B` (batch, 1–50 items) |
+| Deposit | exactly the contract's storage deposit: `567 B + metadata bytes` (register, metadata ≤ 256 B), 182 B (commit), `items × 182 B` (batch, 1–50 items) |
 | Validity | `maxBlockHeight` in `(current, current + 600]` |
 | Signature | ed25519/secp256k1 over `sha256(borsh(DelegateAction))` |
 | Inner signer | a **regular** access key: `FullAccess` or contract-scoped `FunctionCall` |

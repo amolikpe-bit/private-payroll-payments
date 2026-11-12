@@ -371,6 +371,7 @@ class FakeChain implements RelayerChain {
   readonly calls: string[] = [];
   readonly permission: AccessKeyPermissionView | null;
   readonly receipt: RelayReceipt = { txHash: "11111111111111111111111111111111", status: "success" };
+  readonly views = new Map<string, unknown>();
 
   constructor(permission: AccessKeyPermissionView | null = "FullAccess") {
     this.permission = permission;
@@ -386,6 +387,11 @@ class FakeChain implements RelayerChain {
     return this.permission;
   }
 
+  async viewFunction<T>(_contractId: string, method: string, args: Record<string, unknown>): Promise<T> {
+    this.calls.push(`view:${method}:${String(args.employee)}`);
+    return (this.views.get(String(args.employee)) ?? null) as T;
+  }
+
   async relay(): Promise<RelayReceipt> {
     this.calls.push("relay");
     return this.receipt;
@@ -399,7 +405,49 @@ test("relayer checks locally before touching the chain, then relays", async () =
   assert.equal(receipt.txHash, chain.receipt.txHash);
   assert.deepEqual(chain.calls[0], "height");
   assert.match(chain.calls[1], /^key:alice\.testnet:ed25519:/);
-  assert.equal(chain.calls[2], "relay");
+  assert.match(chain.calls[2], /^view:get_employee:alice\.testnet$/);
+  assert.equal(chain.calls[3], "relay");
+});
+
+test("relayer rejects a registration whose employee already exists", async () => {
+  const chain = new FakeChain();
+  chain.views.set("alice.testnet", { active: true });
+  const relayer = new SubrosaRelayer({ relayerAccountId: RELAYER, chain });
+  await assert.rejects(
+    relayer.relay(makeSignedDelegate({ args: EMPLOYEE_ARGS })),
+    (error: unknown) => error instanceof RelayerError && error.code === "INNER_WILL_FAIL",
+  );
+  assert.equal(chain.calls.includes("relay"), false);
+});
+
+test("relayer rejects a commitment for an unregistered employee", async () => {
+  const chain = new FakeChain();
+  const relayer = new SubrosaRelayer({ relayerAccountId: RELAYER, chain });
+  await assert.rejects(
+    relayer.relay(
+      makeSignedDelegate({
+        methodName: "commit_salary",
+        args: { employee: "alice.testnet", commitment_hash: "a".repeat(64), cycle_id: 1 },
+        deposit: COMMITMENT_RECORD_BYTES * YOCTO_PER_BYTE,
+      }),
+    ),
+    (error: unknown) => error instanceof RelayerError && error.code === "INNER_WILL_FAIL",
+  );
+  assert.equal(chain.calls.includes("relay"), false);
+});
+
+test("relayer enforces the per-sender sponsored-deposit cap", async () => {
+  const chain = new FakeChain();
+  const relayer = new SubrosaRelayer({
+    relayerAccountId: RELAYER,
+    chain,
+    maxSponsoredDepositPerSenderYocto: 0n,
+  });
+  await assert.rejects(
+    relayer.relay(makeSignedDelegate({ args: EMPLOYEE_ARGS })),
+    (error: unknown) => error instanceof RelayerError && error.code === "SPONSOR_BUDGET_EXCEEDED",
+  );
+  assert.equal(chain.calls.includes("relay"), false);
 });
 
 test("relayer never submits when local policy rejects the delegate", async () => {

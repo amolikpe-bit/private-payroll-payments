@@ -473,6 +473,8 @@ export class PrivatePayoutFlow {
         { payoutId },
       );
     }
+    const pending = await this.#loadPending(employer, payoutId);
+    this.#assertBinding(pending, payout, false);
     const polled = await this.#poll(depositAddress, depositMemo, payoutId);
     return this.#reconcile(payoutId, payout, undefined, undefined, normalizeStatus(polled.status));
   }
@@ -592,6 +594,7 @@ export class PrivatePayoutFlow {
     if (request.receiptId !== undefined) {
       const receipt = await this.#store.getReceipt(request.receiptId);
       if (receipt !== undefined) {
+        this.#assertReceiptBinding(receipt, employer, payoutId);
         return receipt;
       }
     }
@@ -599,10 +602,28 @@ export class PrivatePayoutFlow {
       assertIntentHash(request.intentHash, "intentHash");
       const receipt = await this.#store.getReceiptByIntentHash(request.intentHash);
       if (receipt !== undefined) {
+        this.#assertReceiptBinding(receipt, employer, payoutId);
         return receipt;
       }
     }
     return this.#findReceipt(employer, payoutId);
+  }
+
+  #assertReceiptBinding(
+    receipt: PrivateReceiptSummary,
+    employer: string,
+    payoutId: number,
+  ): void {
+    if (
+      receipt.employer !== employer ||
+      receipt.payrollId !== `payout:${employer}:${payoutId}`
+    ) {
+      throw new PrivatePayoutFlowError(
+        "PAYOUT_STORE_MISMATCH",
+        "The receipt reference belongs to a different payout.",
+        { payoutId },
+      );
+    }
   }
 
   async #poll(

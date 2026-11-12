@@ -33,6 +33,7 @@ export const DISCLOSURE_CSV_COLUMNS = [
   "commitment_hash",
   "asset",
   "amount",
+  "amount_formatted",
   "employee_hash",
   "source",
 ] as const;
@@ -90,6 +91,7 @@ interface DisclosureRow {
   commitmentHash: string;
   asset: string;
   amount: string;
+  amountFormatted: string;
   employeeHash: string;
   source: "remote" | "local-receipts";
 }
@@ -101,6 +103,7 @@ const CSV_VALUE: Record<DisclosureCsvColumn, (row: DisclosureRow) => string> = {
   commitment_hash: (row) => row.commitmentHash,
   asset: (row) => row.asset,
   amount: (row) => row.amount,
+  amount_formatted: (row) => row.amountFormatted,
   employee_hash: (row) => row.employeeHash,
   source: (row) => row.source,
 };
@@ -127,10 +130,11 @@ function rowKey(row: DisclosureRow): string {
 }
 
 function csvField(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+  const guarded = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  if (/[",\r\n]/.test(guarded)) {
+    return `"${guarded.replace(/"/g, '""')}"`;
   }
-  return value;
+  return guarded;
 }
 
 function toIso(value: unknown, field: string): string {
@@ -159,7 +163,8 @@ function remoteRow(item: UserSessionHistoryItem): DisclosureRow {
     intentHash: optionalText(item.intentHash),
     commitmentHash: "",
     asset: optionalText(item.destinationAsset ?? item.originAsset),
-    amount: optionalText(item.amount),
+    amount: "",
+    amountFormatted: optionalText(item.amount),
     employeeHash: item.recipient === undefined ? "" : sha256Hex(item.recipient),
     source: item.source,
   };
@@ -173,6 +178,7 @@ function localRow(receipt: PrivateReceiptSummary): DisclosureRow {
     commitmentHash: receipt.commitmentHash ?? "",
     asset: receipt.asset,
     amount: receipt.amount,
+    amountFormatted: "",
     employeeHash: sha256Hex(receipt.employee),
     source: "local-receipts",
   };
@@ -260,8 +266,16 @@ export class AuditorDisclosureExporter {
       if (existing.source === "local-receipts" && row.source === "remote") {
         merged.set(key, {
           ...row,
+          amount: row.amount || existing.amount,
+          amountFormatted: row.amountFormatted || existing.amountFormatted,
           commitmentHash: existing.commitmentHash || row.commitmentHash,
         });
+        continue;
+      }
+      if (existing.source === "remote" && row.source === "local-receipts") {
+        existing.amount = existing.amount || row.amount;
+        existing.amountFormatted = existing.amountFormatted || row.amountFormatted;
+        existing.commitmentHash = existing.commitmentHash || row.commitmentHash;
         continue;
       }
       if (existing.commitmentHash.length === 0 && row.commitmentHash.length > 0) {
@@ -361,6 +375,7 @@ function assertPublicRow(row: DisclosureRow): DisclosureRow {
     "commitmentHash",
     "asset",
     "amount",
+    "amountFormatted",
     "employeeHash",
     "source",
   ]);

@@ -51,7 +51,7 @@ export class RegistryClient {
         token: requireAccountId(args.token, "token"),
         metadata,
       },
-      { ...opts, deposit: opts?.deposit ?? storageDepositNear(267 + metadataBytes) },
+      { ...opts, deposit: opts?.deposit ?? storageDepositNear(567 + metadataBytes) },
     );
   }
 

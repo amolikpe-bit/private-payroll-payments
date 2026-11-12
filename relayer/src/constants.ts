@@ -21,7 +21,7 @@ export const DEFAULT_TESTNET_RPC_URL = "https://rpc.testnet.near.org";
 export const YOCTO_PER_BYTE = 10n ** 19n;
 
 /** Runtime record sizes from the contract's documented storage model. */
-export const EMPLOYEE_RECORD_BYTES = 267n;
+export const EMPLOYEE_RECORD_BYTES = 567n;
 export const COMMITMENT_RECORD_BYTES = 182n;
 /** `batch_commit_salaries` cap (`MAX_BATCH_COMMITS` in the contract). */
 export const MAX_BATCH_COMMITS = 50;
@@ -85,6 +85,9 @@ export const ALLOWED_METHODS = {
 
 /** Maximum validity window accepted for a delegate action, in blocks. */
 export const DEFAULT_MAX_TTL_BLOCKS = 600;
+
+/** In-process sponsored-deposit budget per sender (1 NEAR). */
+export const DEFAULT_MAX_SPONSORED_DEPOSIT_PER_SENDER_YOCTO = 10n ** 24n;
 
 /** Maximum serialized signed-delegate size accepted over HTTP (48 KiB). */
 export const MAX_SIGNED_DELEGATE_BYTES = 48 * 1024;

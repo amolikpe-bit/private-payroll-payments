@@ -11,6 +11,7 @@ import type { SignedDelegate } from "near-api-js";
 import type { AccessKeyPermissionView } from "./nearTypes.js";
 
 import {
+  DEFAULT_MAX_SPONSORED_DEPOSIT_PER_SENDER_YOCTO,
   DEFAULT_MAX_TTL_BLOCKS,
   RELAYER_NETWORK,
   SUBROSA_TESTNET_CONTRACT,
@@ -27,6 +28,7 @@ import {
   verifyDelegateSignature,
   type DelegateShapePolicy,
   type PublicMethodPolicy,
+  type ValidatedDelegate,
 } from "./policy.js";
 
 /** Chain access needed by the relayer; injectable for deterministic tests. */
@@ -34,6 +36,8 @@ export interface RelayerChain {
   currentBlockHeight(): Promise<bigint>;
   /** `null` when the key does not exist on the account. */
   getAccessKey(accountId: string, publicKey: string): Promise<AccessKeyPermissionView | null>;
+  /** Contract view used to prove the inner call will not fail deterministically. */
+  viewFunction<T>(contractId: string, method: string, args: Record<string, unknown>): Promise<T>;
   relay(signedDelegate: SignedDelegate): Promise<RelayReceipt>;
 }
 
@@ -59,6 +63,8 @@ export interface SubrosaRelayerOptions {
   readonly network?: string;
   readonly maxTtlBlocks?: number;
   readonly methods?: Readonly<Record<string, MethodPolicy>>;
+  /** In-process sponsored-deposit budget per sender; defaults to 1 NEAR. */
+  readonly maxSponsoredDepositPerSenderYocto?: bigint;
 }
 
 const ACCOUNT_ID_PATTERN = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
@@ -75,6 +81,8 @@ export class SubrosaRelayer implements RelayerRequestHandler {
   readonly #network: string;
   readonly #maxTtlBlocks: number;
   readonly #methods: Readonly<Record<string, MethodPolicy>>;
+  readonly #sponsoredDepositBySender = new Map<string, bigint>();
+  readonly #maxSponsoredDepositPerSenderYocto: bigint;
 
   constructor(options: SubrosaRelayerOptions) {
     if (
@@ -89,11 +97,18 @@ export class SubrosaRelayer implements RelayerRequestHandler {
     if (!Number.isSafeInteger(maxTtlBlocks) || maxTtlBlocks <= 0) {
       throw new RelayerError("INVALID_REQUEST", "maxTtlBlocks must be a positive integer.");
     }
+    const maxSponsored =
+      options.maxSponsoredDepositPerSenderYocto ??
+      DEFAULT_MAX_SPONSORED_DEPOSIT_PER_SENDER_YOCTO;
+    if (maxSponsored < 0n) {
+      throw new RelayerError("INVALID_REQUEST", "Sponsored-deposit cap must be non-negative.");
+    }
     this.#relayerAccountId = options.relayerAccountId;
     this.#chain = options.chain;
     this.#network = network;
     this.#maxTtlBlocks = maxTtlBlocks;
     this.#methods = options.methods ?? DEFAULT_METHODS;
+    this.#maxSponsoredDepositPerSenderYocto = maxSponsored;
   }
 
   describe(): RelayerDescription {
@@ -142,6 +157,9 @@ export class SubrosaRelayer implements RelayerRequestHandler {
     }
     validateInnerAccessKey(permission, validated.method, SUBROSA_TESTNET_CONTRACT);
 
+    await this.#preflight(validated);
+    this.#chargeSponsorship(validated);
+
     try {
       return await this.#chain.relay(signedDelegate);
     } catch (error) {
@@ -152,5 +170,86 @@ export class SubrosaRelayer implements RelayerRequestHandler {
         cause: error,
       });
     }
+  }
+
+  /** Reject inner calls that are guaranteed to fail, so a refund cannot drain the relayer. */
+  async #preflight(validated: ValidatedDelegate): Promise<void> {
+    const employees = this.#employeeTargets(validated);
+    for (const employee of employees) {
+      let row: unknown;
+      try {
+        row = await this.#chain.viewFunction<unknown>(
+          SUBROSA_TESTNET_CONTRACT,
+          "get_employee",
+          { employer: validated.senderId, employee },
+        );
+      } catch (error) {
+        throw new RelayerError(
+          "UPSTREAM_ERROR",
+          "Could not preflight the inner call against the contract.",
+          { cause: error },
+        );
+      }
+      const exists = row !== null && row !== undefined;
+      const shouldExist = validated.method !== "register_employee";
+      if (exists !== shouldExist) {
+        throw new RelayerError(
+          "INNER_WILL_FAIL",
+          "The inner call is guaranteed to fail for the sender's current state.",
+        );
+      }
+    }
+  }
+
+  #employeeTargets(validated: ValidatedDelegate): string[] {
+    const args = validated.args;
+    const hashPattern = /^[0-9a-f]{64}$/;
+    const requireString = (value: unknown, field: string): string => {
+      if (typeof value !== "string" || value.length === 0) {
+        throw new RelayerError("INVALID_ARGS", `${field} must be a non-empty string.`);
+      }
+      return value;
+    };
+    const requireHash = (value: unknown): void => {
+      if (typeof value !== "string" || !hashPattern.test(value)) {
+        throw new RelayerError(
+          "INVALID_ARGS",
+          "commitment hash must be exactly 64 lowercase hexadecimal characters.",
+        );
+      }
+    };
+
+    if (validated.method === "register_employee") {
+      requireHash(args.salary_commitment);
+      return [requireString(args.employee, "employee")];
+    }
+    if (validated.method === "commit_salary") {
+      requireHash(args.commitment_hash);
+      return [requireString(args.employee, "employee")];
+    }
+    const items = args.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new RelayerError("INVALID_ARGS", "items must be a non-empty array.");
+    }
+    return items.map((item) => {
+      if (typeof item !== "object" || item === null) {
+        throw new RelayerError("INVALID_ARGS", "Each batch item must be an object.");
+      }
+      const record = item as Record<string, unknown>;
+      requireHash(record.commitment_hash);
+      return requireString(record.employee, "employee");
+    });
+  }
+
+  #chargeSponsorship(validated: ValidatedDelegate): void {
+    const spent = this.#sponsoredDepositBySender.get(validated.senderId) ?? 0n;
+    const next = spent + validated.depositYocto;
+    if (next > this.#maxSponsoredDepositPerSenderYocto) {
+      throw new RelayerError(
+        "SPONSOR_BUDGET_EXCEEDED",
+        "This sender has exhausted the in-process sponsored-deposit budget.",
+      );
+    }
+    this.#sponsoredDepositBySender.set(validated.senderId, next);
   }
 }

@@ -277,6 +277,20 @@ export class NearRelayerChain implements RelayerChain {
     }
   }
 
+  async viewFunction<T>(
+    contractId: string,
+    method: string,
+    args: Record<string, unknown>,
+  ): Promise<T> {
+    const result = await this.#account.provider.callFunction({
+      contractId,
+      method,
+      args,
+      blockQuery: { finality: "final" },
+    });
+    return result as T;
+  }
+
   async relay(signedDelegate: SignedDelegate): Promise<RelayReceipt> {
     let response: RpcTransactionResponse;
     try {

@@ -56,6 +56,7 @@ export interface ValidatedDelegate {
   readonly nonce: bigint;
   readonly maxBlockHeight: bigint;
   readonly publicKey: string;
+  readonly args: Record<string, unknown>;
 }
 
 /** Reject any network other than testnet. */
@@ -265,6 +266,7 @@ export function validateDelegateShape(
     depositYocto: call.deposit,
     nonce: delegate.nonce,
     maxBlockHeight,
+    args: decodeJsonArgs(call.args),
     publicKey,
   };
 }

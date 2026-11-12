@@ -394,6 +394,12 @@ async fn sandbox_registry_commitments_and_pause() {
         .expect("employee d");
 
     let metadata = "payroll-2026-11";
+    let storage_before = fixture
+        .contract
+        .view_account()
+        .await
+        .expect("contract account")
+        .storage_usage;
     let register_a = call_with(
         &fixture.employer,
         &fixture.contract,
@@ -414,6 +420,18 @@ async fn sandbox_registry_commitments_and_pause() {
         .map(|line| (*line).to_string())
         .collect::<Vec<_>>();
     expect_success(register_a);
+    let storage_after = fixture
+        .contract
+        .view_account()
+        .await
+        .expect("contract account after registration")
+        .storage_usage;
+    let modelled_growth = EMPLOYEE_RECORD_BYTES as u64 + metadata.len() as u64;
+    let actual_growth = storage_after.saturating_sub(storage_before);
+    assert!(
+        actual_growth <= modelled_growth,
+        "employee record grew by {actual_growth} bytes; modelled {modelled_growth} bytes"
+    );
     assert!(
         logs.iter()
             .any(|line| line.contains("EVENT_JSON:") && line.contains("employee_registered")),

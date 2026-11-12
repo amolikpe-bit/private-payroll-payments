@@ -259,6 +259,50 @@ test("resume returns pending without a deposit reference and never submits again
   }
 });
 
+test("resume rejects a receipt that belongs to another payout", async () => {
+  const setup = await harness();
+  try {
+    const firstPayout = await schedule(setup);
+    const secondPayout = await schedule(setup);
+    await setup.store.savePrivateReceipt({
+      receiptId: "rcpt_other_payout",
+      payrollId: `payout:${EMPLOYER}:${firstPayout}`,
+      employer: EMPLOYER,
+      employee: EMPLOYEE,
+      intentHash: "e".repeat(64),
+      commitmentHash: COMMITMENT,
+      amount: AMOUNT.toString(),
+      asset: TOKEN,
+      depositAddress: "deposit-other-payout",
+      status: "PENDING_DEPOSIT",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await assert.rejects(
+      () =>
+        setup.flow.resume({
+          employer: EMPLOYER,
+          payoutId: secondPayout,
+          receiptId: "rcpt_other_payout",
+        }),
+      (error: unknown) =>
+        error instanceof PrivatePayoutFlowError && error.code === "PAYOUT_STORE_MISMATCH",
+    );
+    await assert.rejects(
+      () =>
+        setup.flow.resume({
+          employer: EMPLOYER,
+          payoutId: secondPayout,
+          intentHash: "e".repeat(64),
+        }),
+      (error: unknown) =>
+        error instanceof PrivatePayoutFlowError && error.code === "PAYOUT_STORE_MISMATCH",
+    );
+  } finally {
+    await rm(setup.directory, { recursive: true, force: true });
+  }
+});
+
 async function seedSubmittedPayout(setup: Harness): Promise<number> {
   const payoutId = await schedule(setup);
   await setup.store.savePrivateReceipt({
@@ -322,11 +366,11 @@ test("auditor CSV is deterministic, hash-only, and omits deposit references", as
         return {
           items: [
             {
-              status: "SUCCESS",
+              status: "=SUM(A1)",
               createdAt: "2026-01-02T00:00:00.000Z",
               destinationAsset: TOKEN,
               recipient: EMPLOYEE,
-              amount: AMOUNT.toString(),
+              amount: "1.25",
               intentHash: HEX_HASH,
               source: "remote" as const,
             },
@@ -350,6 +394,8 @@ test("auditor CSV is deterministic, hash-only, and omits deposit references", as
     assert.equal(first.source, "remote+local");
     assert.equal(first.csv.split("\n")[0], DISCLOSURE_CSV_COLUMNS.join(","));
     assert.ok(first.csv.includes(AMOUNT.toString()));
+    assert.ok(first.csv.includes("1.25"));
+    assert.ok(first.csv.includes("'=SUM(A1)"));
     assert.ok(first.csv.includes(COMMITMENT));
     assert.ok(!first.csv.includes("deposit-secret"));
     assert.ok(!first.csv.includes(EMPLOYEE));
