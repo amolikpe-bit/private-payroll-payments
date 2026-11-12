@@ -71,6 +71,21 @@ function baseRequest(overrides: Partial<PayrollPaymentRequest> = {}): PayrollPay
   };
 }
 
+function payoutsFor(requests: PayrollPaymentRequest[]): Map<number, PayoutEntry> {
+  return new Map(
+    requests.map((request) => [
+      request.payoutId,
+      {
+        ...pendingPayout,
+        employee: request.employee,
+        commitment_hash: request.commitmentHash,
+        asset: request.asset,
+        memo: request.memo ?? "",
+      },
+    ]),
+  );
+}
+
 function holdEntry(overrides: Partial<HoldEntry> = {}): HoldEntry {
   return {
     employer,
@@ -104,6 +119,7 @@ interface FakeOptions {
   holds?: Record<string, HoldEntry | Error>;
   holdIds?: string[] | Error;
   payout?: PayoutEntry | null;
+  payouts?: Map<number, PayoutEntry>;
   markSettledError?: Error;
   markFailedError?: Error;
   executorError?: Error;
@@ -178,8 +194,9 @@ function makeService(options: FakeOptions = {}) {
       },
     },
     payouts: {
-      async getPayout() {
-        return options.payout === undefined ? pendingPayout : options.payout;
+      async getPayout(_employer, payoutId) {
+        if (options.payout !== undefined) return options.payout;
+        return options.payouts?.get(payoutId) ?? pendingPayout;
       },
       async markSettled(payoutId, intentHash) {
         calls.settled.push({ payoutId, intentHash });
@@ -433,8 +450,6 @@ test("idempotency keys dedupe concurrent payments and reject payload reuse", asy
 });
 
 test("batch payments validate first, preserve order, and report progress", async () => {
-  const { service, calls } = makeService();
-
   const entries = ["user0.near", "user1.near", "user2.near"].map((requestedEmployee, index) =>
     baseRequest({
       employee: requestedEmployee,
@@ -449,6 +464,7 @@ test("batch payments validate first, preserve order, and report progress", async
       }),
     }),
   );
+  const { service, calls } = makeService({ payouts: payoutsFor(entries) });
 
   const stages: string[] = [];
   const result = await service.processBatchPayments(entries, {
@@ -481,9 +497,6 @@ test("batch validation failures throw before any payout", async () => {
 });
 
 test("batch failures return a safe result instead of throwing", async () => {
-  const { service, calls } = makeService({
-    blockedEmployees: new Set(["blocked.near"]),
-  });
   const entries = ["user0.near", "user1.near", "blocked.near"].map((requestedEmployee, index) =>
     baseRequest({
       employee: requestedEmployee,
@@ -498,6 +511,10 @@ test("batch failures return a safe result instead of throwing", async () => {
       }),
     }),
   );
+  const { service, calls } = makeService({
+    blockedEmployees: new Set(["blocked.near"]),
+    payouts: payoutsFor(entries),
+  });
 
   const result = await service.processBatchPayments(entries, {
     batchSize: 2,

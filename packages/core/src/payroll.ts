@@ -111,7 +111,11 @@ export type PayrollErrorCode =
   | "HOLD_ACTIVE"
   | "HOLD_STATUS_UNKNOWN"
   | "HOLD_STATUS_UNAVAILABLE"
+  | "PAYOUT_NOT_FOUND"
+  | "PAYOUT_NOT_PENDING"
+  | "PAYOUT_MISMATCH"
   | "PAYOUT_EXECUTION_FAILED"
+  | "PAYOUT_SETTLEMENT_FAILED"
   | "PAYOUT_SETTLEMENT_RECORD_FAILED";
 
 /** SDK-level payroll failure carrying a stable code and a sanitized message. */

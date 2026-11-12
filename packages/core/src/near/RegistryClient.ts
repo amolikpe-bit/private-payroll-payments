@@ -14,6 +14,7 @@ import {
   normalizeCommitmentHash,
   parseAccountIdArray,
   parseBoolean,
+  parseCount,
   parseEmployeeEntry,
   requireAccountId,
   storageDepositNear,
