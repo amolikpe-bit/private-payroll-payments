@@ -4,12 +4,11 @@ import type { AddressInfo } from "node:net";
 import test from "node:test";
 
 import {
-  Action,
   DelegateAction,
-  FunctionCall,
   KeyPair,
   Signature,
   SignedDelegate,
+  actions as nearActions,
   encodeDelegateAction,
 } from "near-api-js";
 
@@ -24,21 +23,19 @@ function buildDelegate(): SignedDelegate {
     senderId: "alice.testnet",
     receiverId: SUBROSA_TESTNET_CONTRACT,
     actions: [
-      new Action({
-        functionCall: new FunctionCall({
-          methodName: "register_employee",
-          args: new TextEncoder().encode(
-            JSON.stringify({
-              employee: "alice.testnet",
-              salary_commitment: "a".repeat(64),
-              token: "usdc.testnet",
-              metadata: "",
-            }),
-          ),
-          gas: 100n * TGAS,
-          deposit: EMPLOYEE_RECORD_BYTES * YOCTO_PER_BYTE,
-        }),
-      }),
+      nearActions.functionCall(
+        "register_employee",
+        new TextEncoder().encode(
+          JSON.stringify({
+            employee: "alice.testnet",
+            salary_commitment: "a".repeat(64),
+            token: "usdc.testnet",
+            metadata: "",
+          }),
+        ),
+        100n * TGAS,
+        EMPLOYEE_RECORD_BYTES * YOCTO_PER_BYTE,
+      ),
     ],
     nonce: 1n,
     maxBlockHeight: 1_100n,

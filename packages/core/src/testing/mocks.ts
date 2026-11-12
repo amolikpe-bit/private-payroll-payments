@@ -256,6 +256,7 @@ export class FakeNearContract {
   readonly #payouts = new Map<string, PayoutEntry>();
   readonly #payoutSeq = new Map<string, number>();
   readonly #holds = new Map<string, HoldEntry>();
+  #paused = false;
   readonly #callerId: string;
 
   readonly account: NearCallAccount;

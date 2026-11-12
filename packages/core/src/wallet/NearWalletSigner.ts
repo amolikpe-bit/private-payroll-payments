@@ -223,9 +223,16 @@ export class NearWalletSigner implements IntentPayloadSigner, IWalletAdapter {
     }
     const accounts = await this.getAccounts();
     const selected = this.#selectAccount(accounts);
+    const publicKey = selected.publicKey;
+    if (publicKey === undefined) {
+      throw new WalletSignerError(
+        "SIGNING_FAILED",
+        "The wallet did not report a public key for the selected account.",
+      );
+    }
     this.#signerId = selected.accountId;
-    this.#publicKey = selected.publicKey;
-    return this.#publicKey;
+    this.#publicKey = publicKey;
+    return publicKey;
   }
 
   /**

@@ -6,7 +6,9 @@
  * key. No RPC call happens before every local check passes.
  */
 
-import type { AccessKeyPermissionView, SignedDelegate } from "near-api-js";
+import type { SignedDelegate } from "near-api-js";
+
+import type { AccessKeyPermissionView } from "./nearTypes.js";
 
 import {
   DEFAULT_MAX_TTL_BLOCKS,

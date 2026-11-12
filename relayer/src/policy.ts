@@ -13,8 +13,9 @@ import {
   PublicKey,
   SignedDelegate,
   encodeDelegateAction,
-  type AccessKeyPermissionView,
 } from "near-api-js";
+
+import type { AccessKeyPermissionView } from "./nearTypes.js";
 
 import {
   ALLOWED_METHODS,

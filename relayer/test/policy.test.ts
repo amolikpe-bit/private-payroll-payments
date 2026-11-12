@@ -3,16 +3,15 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 
 import {
-  Action,
   DelegateAction,
-  FunctionCall,
   KeyPair,
   Signature,
   SignedDelegate,
-  Transfer,
+  actions as nearActions,
   encodeDelegateAction,
-  type AccessKeyPermissionView,
 } from "near-api-js";
+
+import type { AccessKeyPermissionView } from "../src/nearTypes.js";
 
 import {
   COMMITMENT_RECORD_BYTES,
@@ -58,7 +57,7 @@ interface DelegateOptions {
   maxBlockHeight?: bigint;
   nonce?: bigint;
   keyPair?: KeyPair;
-  actions?: Action[];
+  actions?: DelegateAction["actions"];
 }
 
 function makeSignedDelegate(options: DelegateOptions = {}): SignedDelegate {
@@ -67,14 +66,12 @@ function makeSignedDelegate(options: DelegateOptions = {}): SignedDelegate {
   const actions =
     options.actions ??
     [
-      new Action({
-        functionCall: new FunctionCall({
-          methodName: options.methodName ?? "register_employee",
-          args,
-          gas: options.gas ?? 100n * TGAS,
-          deposit: options.deposit ?? EMPLOYEE_RECORD_BYTES * YOCTO_PER_BYTE,
-        }),
-      }),
+      nearActions.functionCall(
+        options.methodName ?? "register_employee",
+        args,
+        options.gas ?? 100n * TGAS,
+        options.deposit ?? EMPLOYEE_RECORD_BYTES * YOCTO_PER_BYTE,
+      ),
     ];
   const delegateAction = new DelegateAction({
     senderId: options.senderId ?? SENDER,
@@ -185,7 +182,7 @@ test("rejects more than 50 batch items", () => {
   const signed = makeSignedDelegate({
     methodName: "batch_commit_salaries",
     args: { items },
-    deposit: 51n * COMMITMENT_RECORD_BYTES * YOCTO_PER_BYTE,
+    deposit: 50n * COMMITMENT_RECORD_BYTES * YOCTO_PER_BYTE,
     gas: 300n * TGAS,
   });
   expectCode(() => validateDelegate(signed, BASE_POLICY), "INVALID_ARGS");
@@ -212,14 +209,12 @@ test("rejects methods outside the allowlist", () => {
 test("rejects multiple inner actions", () => {
   const keyPair = KeyPair.fromRandom("ed25519");
   const call = (methodName: string) =>
-    new Action({
-      functionCall: new FunctionCall({
-        methodName,
-        args: new TextEncoder().encode("{}"),
-        gas: 100n * TGAS,
-        deposit: EMPLOYEE_RECORD_BYTES * YOCTO_PER_BYTE,
-      }),
-    });
+    nearActions.functionCall(
+      methodName,
+      new TextEncoder().encode("{}"),
+      100n * TGAS,
+      EMPLOYEE_RECORD_BYTES * YOCTO_PER_BYTE,
+    );
   const signed = makeSignedDelegate({
     keyPair,
     actions: [call("register_employee"), call("commit_salary")],
@@ -231,7 +226,7 @@ test("rejects a non-function-call action", () => {
   const keyPair = KeyPair.fromRandom("ed25519");
   const signed = makeSignedDelegate({
     keyPair,
-    actions: [new Action({ transfer: new Transfer({ deposit: 1n }) })],
+    actions: [nearActions.transfer(1n)],
   });
   expectCode(() => validateDelegate(signed, BASE_POLICY), "ACTION_NOT_ALLOWED");
 });

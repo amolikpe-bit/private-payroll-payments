@@ -15,12 +15,12 @@
 import {
   Account,
   KeyPair,
-  type AccessKeyPermissionView,
   type KeyPairString,
-  type RpcTransactionResponse,
   type SignedDelegate,
 } from "near-api-js";
 import { AccessKeyDoesNotExistError } from "near-api-js/rpc-errors";
+
+import type { AccessKeyPermissionView, RpcTransactionResponse } from "./nearTypes.js";
 
 import {
   DEFAULT_RETIRE_RESERVE_YOCTO,

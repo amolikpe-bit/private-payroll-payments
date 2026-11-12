@@ -767,7 +767,7 @@ async fn sandbox_registry_commitments_and_pause() {
     assert_eq!(count, 2);
 
     expect_failure(
-        call(
+        call_with(
             &fixture.other,
             &fixture.contract,
             "commit_salary",
@@ -776,6 +776,8 @@ async fn sandbox_registry_commitments_and_pause() {
                 "commitment_hash": commitment(0xb4),
                 "cycle_id": 7,
             }),
+            commitment_deposit(1),
+            Gas::from_tgas(DEFAULT_GAS_TGAS),
         )
         .await,
         "Employee not registered",
