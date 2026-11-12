@@ -74,7 +74,7 @@ export class CommitmentClient {
         commitment_hash: normalizeCommitmentHash(args.commitmentHash, "commitmentHash"),
         cycle_id: assertSafeU64(args.cycleId, "cycleId"),
       },
-      opts,
+      { ...opts, deposit: opts?.deposit ?? commitmentDepositNear(1) },
     );
   }
 

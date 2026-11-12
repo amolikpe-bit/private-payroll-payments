@@ -42,8 +42,8 @@ use near_sdk_contract_tools::pause::Pause;
 
 use crate::events::{Event, ProofVerifiedData};
 use crate::{
-    hex_decode, hex_encode, Contract, ContractExt, VerificationKeyInfo,
-    MAX_VK_DESCRIPTION_BYTES, NULLIFIER_RECORD_BYTES,
+    hex_encode, Contract, ContractExt, VerificationKeyInfo, MAX_VK_DESCRIPTION_BYTES,
+    NULLIFIER_RECORD_BYTES,
 };
 
 /// Bytes in a G1 point (`x ‖ y`).
@@ -334,15 +334,10 @@ impl Contract {
     ) -> bool {
         Self::require_unpaused();
 
-        let vk_bytes = match self
-            .vks
-            .get(&verification_key_id)
-            .and_then(|info| hex_decode(&info.key))
-        {
-            Some(bytes) => bytes,
+        let vk_bytes = match self.vks.get(&verification_key_id) {
+            Some(info) => info.key.clone(),
             None => return false,
         };
-        Self::assert_storage_deposit(NULLIFIER_RECORD_BYTES);
 
         if proof_bytes.len() != PROOF_BYTES {
             return false;
@@ -358,6 +353,7 @@ impl Contract {
             return false;
         }
 
+        Self::assert_storage_deposit(NULLIFIER_RECORD_BYTES);
         self.used_proofs.insert(nullifier);
         Event::ProofVerified(vec![ProofVerifiedData {
             vk_id: verification_key_id,
@@ -368,8 +364,8 @@ impl Contract {
     }
 
     /// Registers a verification key and returns its id (1-based). Owner only.
-    /// The key is stored hex encoded so the JSON shape matches the SDK's
-    /// `VerificationKeyInfo`.
+    /// The raw key bytes are stored and returned by `get_verification_key`;
+    /// `get_verification_key_info` serializes them as a JSON byte array.
     pub fn add_verification_key(&mut self, vk_bytes: Vec<u8>, description: String) -> u32 {
         Self::require_owner();
         Self::require_unpaused();
@@ -389,7 +385,7 @@ impl Contract {
         self.vks.insert(
             id,
             VerificationKeyInfo {
-                key: hex_encode(&vk_bytes),
+                key: vk_bytes,
                 description,
             },
         );
@@ -409,7 +405,7 @@ impl Contract {
 
     /// Returns the raw verification-key bytes (`None` for an unknown id).
     pub fn get_verification_key(&self, id: u32) -> Option<Vec<u8>> {
-        self.vks.get(&id).and_then(|info| hex_decode(&info.key))
+        self.vks.get(&id).map(|info| info.key.clone())
     }
 
     /// Returns the verification key and its description (`None` for an

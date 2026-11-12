@@ -14,10 +14,11 @@ import {
   normalizeCommitmentHash,
   parseAccountIdArray,
   parseBoolean,
-  parseCount,
   parseEmployeeEntry,
   requireAccountId,
+  storageDepositNear,
 } from "./entries.js";
+import { ValidationError } from "../core/errors.js";
 
 export interface RegisterEmployeeArgs {
   employee: string;
@@ -36,15 +37,20 @@ export class RegistryClient {
 
   /** Register an employee with a commitment hash (never the salary itself). */
   async registerEmployee(args: RegisterEmployeeArgs, opts?: NearContractCallOptions): Promise<void> {
+    const metadata = args.metadata ?? "";
+    const metadataBytes = new TextEncoder().encode(metadata).length;
+    if (metadataBytes > 256) {
+      throw new ValidationError("metadata must be at most 256 UTF-8 bytes.", "metadata");
+    }
     await this.near.call<null>(
       "register_employee",
       {
         employee: requireAccountId(args.employee, "employee"),
         salary_commitment: normalizeCommitmentHash(args.salaryCommitment, "salaryCommitment"),
         token: requireAccountId(args.token, "token"),
-        metadata: args.metadata ?? "",
+        metadata,
       },
-      opts,
+      { ...opts, deposit: opts?.deposit ?? storageDepositNear(267 + metadataBytes) },
     );
   }
 

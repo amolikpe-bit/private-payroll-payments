@@ -218,12 +218,12 @@ pub enum HoldReason {
 
 /// Groth16 verification key plus a human-readable label.
 ///
-/// `key` holds the raw verification-key bytes **hex encoded** in JSON, matching
-/// the shared SDK type `VerificationKeyInfo.key`.
+/// `key` holds the raw verification-key bytes; JSON serializes it as a byte
+/// array and `get_verification_key` returns the same bytes.
 #[near(serializers = [json, borsh])]
 #[derive(Clone)]
 pub struct VerificationKeyInfo {
-    pub key: String,
+    pub key: Vec<u8>,
     pub description: String,
 }
 
@@ -295,7 +295,7 @@ pub(crate) fn parse_hold_reason(code: &str) -> Option<HoldReason> {
     }
 }
 
-/// Lowercase hex encoding used for nullifiers and stored verification keys.
+/// Lowercase hex encoding used for proof nullifiers.
 pub(crate) fn hex_encode(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
@@ -304,30 +304,6 @@ pub(crate) fn hex_encode(bytes: &[u8]) -> String {
         out.push(HEX[(byte & 0x0f) as usize] as char);
     }
     out
-}
-
-/// Decodes a lowercase/uppercase hex string; returns `None` on bad input.
-pub(crate) fn hex_decode(value: &str) -> Option<Vec<u8>> {
-    if value.len() % 2 != 0 {
-        return None;
-    }
-    let mut out = Vec::with_capacity(value.len() / 2);
-    let bytes = value.as_bytes();
-    for pair in bytes.chunks_exact(2) {
-        let high = hex_value(pair[0])?;
-        let low = hex_value(pair[1])?;
-        out.push((high << 4) | low);
-    }
-    Some(out)
-}
-
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
 }
 
 /// Origin SDK cancellation reason codes (lowercase snake case).
@@ -435,12 +411,12 @@ impl Contract {
         metadata: String,
     ) {
         Self::require_unpaused();
-        Self::assert_storage_deposit(EMPLOYEE_RECORD_BYTES);
         Self::assert_commitment_hash(&salary_commitment);
         require!(
             metadata.len() <= MAX_METADATA_BYTES,
             "metadata must be at most 256 bytes"
         );
+        Self::assert_storage_deposit(EMPLOYEE_RECORD_BYTES + metadata.len() as u64);
 
         let employer = env::predecessor_account_id();
         let key = (employer.clone(), employee.clone());
@@ -738,9 +714,9 @@ impl Contract {
         execute_at: u64,
     ) -> u64 {
         Self::require_unpaused();
-        Self::assert_storage_deposit(PAYOUT_RECORD_BYTES);
         Self::assert_commitment_hash(&commitment_hash);
         require!(memo.len() <= MAX_MEMO_BYTES, "memo must be at most 256 bytes");
+        Self::assert_storage_deposit(PAYOUT_RECORD_BYTES + memo.len() as u64);
 
         let employer = env::predecessor_account_id();
         let mut ids = self
@@ -987,7 +963,6 @@ impl Contract {
         reason_code: String,
     ) {
         Self::require_unpaused();
-        Self::assert_storage_deposit(HOLD_RECORD_BYTES);
         require!(
             !hold_id.is_empty() && hold_id.len() <= MAX_HOLD_ID_BYTES,
             "hold_id must be 1..=128 bytes"
@@ -995,6 +970,9 @@ impl Contract {
         require!(
             !scope_id.is_empty() && scope_id.len() <= MAX_HOLD_ID_BYTES,
             "scope_id must be 1..=128 bytes"
+        );
+        Self::assert_storage_deposit(
+            HOLD_RECORD_BYTES + (hold_id.len() + scope_id.len()) as u64,
         );
         let reason = parse_hold_reason(&reason_code)
             .unwrap_or_else(|| env::panic_str("Unknown hold reason code"));
@@ -1023,6 +1001,10 @@ impl Contract {
             },
         );
         let mut ids = self.hold_ids.get(&employer).cloned().unwrap_or_default();
+        require!(
+            ids.len() < MAX_INDEX_ENTRIES as usize,
+            "Hold index is capped at 500 per employer"
+        );
         ids.push(hold_id.clone());
         self.hold_ids.insert(employer.clone(), ids);
 
@@ -1039,6 +1021,25 @@ impl Contract {
     /// Returns the hold row, if any.
     pub fn get_audit_hold(&self, hold_id: String) -> Option<HoldEntry> {
         self.holds.get(&hold_id).cloned()
+    }
+
+    /// Returns the per-employer hold-id index, paginated like the other
+    /// index views (`1..=500`).
+    pub fn get_hold_ids(
+        &self,
+        employer: AccountId,
+        from_index: u32,
+        limit: u32,
+    ) -> Vec<String> {
+        require!(
+            (1..=MAX_PAGE_LIMIT).contains(&limit),
+            "limit must be between 1 and 500"
+        );
+        let ids = self.hold_ids.get(&employer).cloned().unwrap_or_default();
+        ids.into_iter()
+            .skip(from_index as usize)
+            .take(limit as usize)
+            .collect()
     }
 
     /// Releases an active hold. Authorized for the employer or one of its

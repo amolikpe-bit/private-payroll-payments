@@ -170,16 +170,54 @@ export type ConfidentialPayoutErrorCode =
   | "PAYOUT_STORE_MISMATCH"
   | "PAYOUT_STATUS_UNEXPECTED"
   | "PAYOUT_STATUS_TIMEOUT"
-  | "QUOTE_NOT_FUNDABLE";
+  | "QUOTE_NOT_FUNDABLE"
+  | "PAYOUT_FAILED"
+  | "PAYOUT_REFUNDED"
+  | "PAYOUT_INCOMPLETE_DEPOSIT";
 
 export class ConfidentialPayoutError extends Error {
   readonly code: ConfidentialPayoutErrorCode;
+  readonly terminalStatus?: "FAILED" | "REFUNDED" | "INCOMPLETE_DEPOSIT";
 
-  constructor(code: ConfidentialPayoutErrorCode, message: string) {
+  constructor(
+    code: ConfidentialPayoutErrorCode,
+    message: string,
+    terminalStatus?: "FAILED" | "REFUNDED" | "INCOMPLETE_DEPOSIT",
+  ) {
     super(message);
     this.name = "ConfidentialPayoutError";
     this.code = code;
+    if (terminalStatus !== undefined) this.terminalStatus = terminalStatus;
   }
+}
+
+function assertSuccessfulSettlement(status: string): void {
+  if (status === "SUCCESS") return;
+  if (status === "FAILED") {
+    throw new ConfidentialPayoutError(
+      "PAYOUT_FAILED",
+      "1Click reported FAILED for this payout.",
+      "FAILED",
+    );
+  }
+  if (status === "REFUNDED") {
+    throw new ConfidentialPayoutError(
+      "PAYOUT_REFUNDED",
+      "1Click refunded this payout.",
+      "REFUNDED",
+    );
+  }
+  if (status === "INCOMPLETE_DEPOSIT") {
+    throw new ConfidentialPayoutError(
+      "PAYOUT_INCOMPLETE_DEPOSIT",
+      "1Click reported an incomplete deposit for this payout.",
+      "INCOMPLETE_DEPOSIT",
+    );
+  }
+  throw new ConfidentialPayoutError(
+    "PAYOUT_STATUS_UNEXPECTED",
+    `Unexpected terminal settlement status "${status}".`,
+  );
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
@@ -272,6 +310,7 @@ export class ConfidentialPayout {
       status: finalStatus.status,
       updatedAt: this.#nowIso(),
     });
+    assertSuccessfulSettlement(finalStatus.status);
     return { intentHash: submitted.intentHash };
   }
 
@@ -340,6 +379,7 @@ export class ConfidentialPayout {
       status: finalStatus.status,
       updatedAt: this.#nowIso(),
     });
+    assertSuccessfulSettlement(finalStatus.status);
     return { intentHash: submitted.intentHash };
   }
 

@@ -11,6 +11,7 @@ import {
   EVENT_JSON_PREFIX,
   EventParseError,
   SUBROSA_EVENT_NAMES,
+  SUBROSA_EVENT_WIRE_NAMES,
   isSubrosaEventName,
   parseSubrosaEventLog,
   parseSubrosaEventLogs,
@@ -394,5 +395,24 @@ describe("parseSubrosaEventLogs", () => {
       () => parseSubrosaEventLog("plain"),
       (error: unknown) => error instanceof EventParseError && error.code === "NOT_AN_EVENT"
     );
+  });
+
+  it("parses the snake_case names emitted by near-sdk", () => {
+    for (const wire of SUBROSA_EVENT_WIRE_NAMES) {
+      assert.equal(isSubrosaEventName(wire), true, wire);
+    }
+    const parsed = parseSubrosaEventLog(
+      eventLog("employee_registered", [
+        {
+          employer: "acme.near",
+          employee: "alice.near",
+          token: "usdc.near",
+          commitment_hash: HASH,
+          at_ns: AT_NS,
+        },
+      ]),
+      0,
+    );
+    assert.equal(parsed.event.event, "EmployeeRegistered");
   });
 });

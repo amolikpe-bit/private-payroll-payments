@@ -41,6 +41,7 @@ import {
   type DestinationValidationHook,
   type DestinationWorkflowValidation,
 } from "./settlement/destination.js";
+import type { PrivateStore } from "./store/PrivateStore.js";
 import type { HoldEntry, PendingPayout } from "./types.js";
 
 const U128_MAX = (1n << 128n) - 1n;
@@ -57,8 +58,9 @@ export interface PayrollPayoutExecutor {
 export interface PayrollServiceDeps {
   registry: Pick<RegistryClient, "getEmployee">;
   commitments: Pick<CommitmentClient, "getCommitment" | "verifyCommitment">;
-  holds: Pick<HoldClient, "getAuditHold">;
-  payouts: Pick<PayoutClient, "markSettled">;
+  holds: Pick<HoldClient, "getAuditHold" | "listHoldIds">;
+  payouts: Pick<PayoutClient, "markSettled" | "markFailed" | "getPayout">;
+  store: Pick<PrivateStore, "savePendingPayout">;
   executor: PayrollPayoutExecutor;
   idempotency?: IdempotencyRegistry<PayrollPaymentResult>;
 }
@@ -159,6 +161,18 @@ function asError(error: unknown): Error {
 
 function redactedMessage(prefix: string, error: unknown): string {
   return `${prefix}: ${redactError(asError(error)).message}`;
+}
+
+type TerminalPayoutStatus = "FAILED" | "REFUNDED" | "INCOMPLETE_DEPOSIT";
+
+function terminalPayoutStatus(error: unknown): TerminalPayoutStatus | undefined {
+  if (error !== null && typeof error === "object" && "terminalStatus" in error) {
+    const status = error.terminalStatus;
+    if (status === "FAILED" || status === "REFUNDED" || status === "INCOMPLETE_DEPOSIT") {
+      return status;
+    }
+  }
+  return undefined;
 }
 
 export class PayrollService {
@@ -343,6 +357,29 @@ export class PayrollService {
         "COMMITMENT_MISMATCH",
       );
     }
+    const payout = await this.deps.payouts.getPayout(employer, payoutId);
+    if (payout === null) {
+      throw new PayrollError("Payout is not scheduled on chain.", "PAYOUT_NOT_FOUND", {
+        payoutId,
+      });
+    }
+    if (payout.state !== "Pending") {
+      throw new PayrollError(
+        "Payout is not pending; refusing to settle an already-final payout.",
+        "PAYOUT_NOT_PENDING",
+        { payoutId, state: payout.state },
+      );
+    }
+    if (
+      payout.employee !== employee ||
+      payout.commitment_hash !== commitment.commitment_hash
+    ) {
+      throw new PayrollError(
+        "Payout row does not match the requested employee/commitment.",
+        "PAYOUT_MISMATCH",
+        { payoutId },
+      );
+    }
 
     // Amount and salt exist only in this in-memory record; contract args carry
     // the public commitment hash and the settlement metadata.
@@ -356,16 +393,30 @@ export class PayrollService {
       memo: request.memo ?? "",
       commitment_hash: commitment.commitment_hash,
     };
+    await this.deps.store.savePendingPayout(pending);
 
     let intentHash: string;
     try {
       const executed = await this.deps.executor.executePendingPayout(pending);
       intentHash = executed.intentHash;
     } catch (error) {
+      const terminalStatus = terminalPayoutStatus(error);
+      if (terminalStatus === "FAILED" || terminalStatus === "REFUNDED") {
+        try {
+          await this.deps.payouts.markFailed(payoutId, terminalStatus);
+        } catch (markError) {
+          throw new PayrollError(
+            redactedMessage("Confidential payout failed and mark_failed failed", markError),
+            "PAYOUT_SETTLEMENT_RECORD_FAILED",
+            { payoutId, terminalStatus },
+            markError,
+          );
+        }
+      }
       throw new PayrollError(
         redactedMessage("Confidential payout failed", error),
-        "PAYOUT_EXECUTION_FAILED",
-        { payoutId },
+        "PAYOUT_SETTLEMENT_FAILED",
+        { payoutId, ...(terminalStatus === undefined ? {} : { terminalStatus }) },
         error,
       );
     }
@@ -391,7 +442,22 @@ export class PayrollService {
     periodId: string;
     batchId?: string;
   }): Promise<void> {
-    const holdIds = input.holdIds ?? [];
+    let holdIds = input.holdIds;
+    if (holdIds === undefined) {
+      try {
+        holdIds = await this.deps.holds.listHoldIds(input.employer, 0, 500);
+      } catch (error) {
+        throw new PayrollError(
+          "Audit hold index could not be read; failing closed and not submitting the payout.",
+          "HOLD_STATUS_UNAVAILABLE",
+          {},
+          error,
+        );
+      }
+    }
+    if (!Array.isArray(holdIds)) {
+      throw new ValidationError("holdIds must be an array when provided.", "holdIds");
+    }
     for (const holdId of holdIds) {
       if (typeof holdId !== "string" || holdId.trim().length === 0) {
         throw new ValidationError("holdIds must contain non-empty strings.", "holdIds");

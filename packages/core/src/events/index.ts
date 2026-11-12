@@ -2,6 +2,7 @@ export {
   EVENT_JSON_PREFIX,
   EventParseError,
   SUBROSA_EVENT_NAMES,
+  SUBROSA_EVENT_WIRE_NAMES,
   SUBROSA_EVENT_STANDARD,
   SUBROSA_EVENT_VERSION,
   isSubrosaEventName,
@@ -21,5 +22,6 @@ export type {
   SalaryCommittedData,
   SubrosaEvent,
   SubrosaEventName,
+  SubrosaEventWireName,
   SubrosaEventParseResult,
 } from "./nep297.js";

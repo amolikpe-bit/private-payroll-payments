@@ -410,13 +410,13 @@ test("PayoutClient maps lifecycle args and parses entries", async () => {
     execute_at: executeAt,
   });
 
-  await client.cancelPayout({ payoutId: 3, reasonCode: "MANUAL_REVIEW_REQUESTED" });
+  await client.cancelPayout({ payoutId: 3, reasonCode: "compliance_hold" });
   assert.deepEqual(account.calls[1].args, {
     payout_id: 3,
-    reason_code: "MANUAL_REVIEW_REQUESTED",
+    reason_code: "compliance_hold",
   });
 
-  const intentHash = "5J8mZ9rT2wXc4VbN7kQpL1sD";
+  const intentHash = "5J8mZ9rT2wXc4VbN7kQpL1sD2fGh3Jk4Lm5Np6Qr7St8";
   await client.markSettled(3, intentHash);
   assert.deepEqual(account.calls[2].args, { payout_id: 3, intent_hash: intentHash });
 

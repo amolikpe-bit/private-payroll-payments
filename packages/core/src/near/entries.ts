@@ -24,6 +24,25 @@ import type {
   PayoutState,
 } from "../types.js";
 
+
+/** NEAR units used to turn a byte cost into a decimal NEAR string. */
+export const YOCTO_PER_NEAR = 10n ** 24n;
+/** Protocol storage cost: 1e19 yoctoNEAR per byte. */
+export const STORAGE_BYTE_COST_YOCTO = 10n ** 19n;
+
+export function formatNearFromYocto(yocto: bigint): string {
+  const whole = yocto / YOCTO_PER_NEAR;
+  const fraction = (yocto % YOCTO_PER_NEAR).toString().padStart(24, "0").replace(/0+$/, "");
+  return fraction.length > 0 ? `${whole}.${fraction}` : whole.toString();
+}
+
+/** Exact decimal NEAR string for `bytes` of new contract storage. */
+export function storageDepositNear(bytes: number): string {
+  if (!Number.isSafeInteger(bytes) || bytes < 0) {
+    throw new ValidationError("Storage byte count must be a non-negative safe integer.", "bytes");
+  }
+  return formatNearFromYocto(BigInt(bytes) * STORAGE_BYTE_COST_YOCTO);
+}
 const HEX_HASH = /^[0-9a-fA-F]{64}$/;
 
 const HOLD_SCOPES: readonly HoldScope[] = ["Employer", "Period", "Batch", "Employee"];
@@ -62,8 +81,8 @@ export function normalizeCommitmentHash(value: unknown, field: string): string {
 
 /** Validate an intent hash as produced by 1Click (base58 or hex, no whitespace). */
 export function assertIntentHash(value: unknown, field: string): string {
-  if (typeof value !== "string" || !/^[0-9A-Za-z]{16,128}$/.test(value.trim())) {
-    throw new ValidationError(`${field} must be a non-empty base58/hex intent hash.`, field);
+  if (typeof value !== "string" || !/^[0-9A-Za-z]{32,88}$/.test(value.trim())) {
+    throw new ValidationError(`${field} must be a 32-88 character base58/hex intent hash.`, field);
   }
   return value.trim();
 }

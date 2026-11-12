@@ -40,6 +40,29 @@ export const SUBROSA_EVENT_NAMES = [
   "ProofVerified",
 ] as const;
 
+/** Wire names emitted by near-sdk's event macro (snake_case). */
+export const SUBROSA_EVENT_WIRE_NAMES = [
+  "employee_registered",
+  "employee_updated",
+  "salary_committed",
+  "auditor_changed",
+  "payout_scheduled",
+  "payout_state_changed",
+  "audit_hold_changed",
+  "proof_verified",
+] as const;
+
+export type SubrosaEventWireName = (typeof SUBROSA_EVENT_WIRE_NAMES)[number];
+
+function canonicalEventName(value: unknown): SubrosaEventName | undefined {
+  if (typeof value !== "string") return undefined;
+  if (SUBROSA_EVENT_NAMES.includes(value as SubrosaEventName)) {
+    return value as SubrosaEventName;
+  }
+  const index = SUBROSA_EVENT_WIRE_NAMES.indexOf(value as SubrosaEventWireName);
+  return index >= 0 ? SUBROSA_EVENT_NAMES[index] : undefined;
+}
+
 export type SubrosaEventName = (typeof SUBROSA_EVENT_NAMES)[number];
 
 /** `EmployeeRegistered(Vec<EmployeeRegisteredData>)`. */
@@ -566,12 +589,13 @@ export function parseSubrosaEventLog(log: string, logIndex = 0): ParsedSubrosaEv
     );
   }
 
-  const eventName = record.event;
-  if (typeof eventName !== "string" || !SUBROSA_EVENT_NAMES.includes(eventName as SubrosaEventName)) {
+  const wireName = record.event;
+  const eventName = canonicalEventName(wireName);
+  if (eventName === undefined) {
     throw new EventParseError(
       "UNKNOWN_EVENT",
-      `Unknown subrosa event "${String(eventName)}".`,
-      { logIndex, event: typeof eventName === "string" ? eventName : undefined }
+      `Unknown subrosa event "${String(wireName)}".`,
+      { logIndex, event: typeof wireName === "string" ? wireName : undefined }
     );
   }
 
@@ -627,5 +651,5 @@ export function parseSubrosaEventLogs(logs: readonly string[]): SubrosaEventPars
 
 /** Type-narrowing helper for indexers switching on an event name. */
 export function isSubrosaEventName(value: unknown): value is SubrosaEventName {
-  return typeof value === "string" && SUBROSA_EVENT_NAMES.includes(value as SubrosaEventName);
+  return canonicalEventName(value) !== undefined;
 }

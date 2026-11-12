@@ -17,7 +17,13 @@ import {
   type PayrollPaymentResult,
   type PayrollPayoutExecutor,
 } from "../src/payroll.js";
-import type { CommitmentEntry, EmployeeEntry, HoldEntry, PendingPayout } from "../src/types.js";
+import type {
+  CommitmentEntry,
+  EmployeeEntry,
+  HoldEntry,
+  PayoutEntry,
+  PendingPayout,
+} from "../src/types.js";
 
 const employer = "employer.near";
 const employee = "alice.near";
@@ -35,6 +41,18 @@ const activeRegistration: EmployeeEntry = {
   active: true,
   created_at: 1,
   updated_at: 1,
+};
+
+const pendingPayout: PayoutEntry = {
+  employer,
+  employee,
+  commitment_hash: expectedCommitment,
+  asset,
+  memo: "November salary",
+  execute_at: 1,
+  created_at: 1,
+  state: "Pending",
+  intent_hash: null,
 };
 
 function baseRequest(overrides: Partial<PayrollPaymentRequest> = {}): PayrollPaymentRequest {
@@ -73,7 +91,10 @@ interface FakeCalls {
   registry: string[];
   commitmentReads: number;
   holdReads: string[];
+  holdListReads: number;
   settled: Array<{ payoutId: number; intentHash: string }>;
+  failed: Array<{ payoutId: number; status: string }>;
+  saved: PendingPayout[];
   executed: PendingPayout[];
 }
 
@@ -81,7 +102,10 @@ interface FakeOptions {
   registration?: EmployeeEntry | null;
   commitment?: CommitmentEntry | null;
   holds?: Record<string, HoldEntry | Error>;
+  holdIds?: string[] | Error;
+  payout?: PayoutEntry | null;
   markSettledError?: Error;
+  markFailedError?: Error;
   executorError?: Error;
   intentHash?: string;
   idempotency?: IdempotencyRegistry<PayrollPaymentResult>;
@@ -93,7 +117,10 @@ function makeService(options: FakeOptions = {}) {
     registry: [],
     commitmentReads: 0,
     holdReads: [],
+    holdListReads: 0,
     settled: [],
+    failed: [],
+    saved: [],
     executed: [],
   };
 
@@ -144,11 +171,28 @@ function makeService(options: FakeOptions = {}) {
         if (value instanceof Error) throw value;
         return value ?? null;
       },
+      async listHoldIds() {
+        calls.holdListReads += 1;
+        if (options.holdIds instanceof Error) throw options.holdIds;
+        return options.holdIds ?? [];
+      },
     },
     payouts: {
+      async getPayout() {
+        return options.payout === undefined ? pendingPayout : options.payout;
+      },
       async markSettled(payoutId, intentHash) {
         calls.settled.push({ payoutId, intentHash });
         if (options.markSettledError) throw options.markSettledError;
+      },
+      async markFailed(payoutId, status) {
+        calls.failed.push({ payoutId, status });
+        if (options.markFailedError) throw options.markFailedError;
+      },
+    },
+    store: {
+      async savePendingPayout(entry) {
+        calls.saved.push(entry);
       },
     },
     executor,
@@ -349,7 +393,7 @@ test("executor failures are redacted and settlement is not recorded", async () =
     () => service.processPayment(baseRequest()),
     (error: unknown) => {
       assert.ok(error instanceof Error);
-      assert.equal("code" in error ? error.code : undefined, "PAYOUT_EXECUTION_FAILED");
+      assert.equal("code" in error ? error.code : undefined, "PAYOUT_SETTLEMENT_FAILED");
       assert.ok(!error.message.includes("1000000"), "amount must be redacted");
       assert.ok(!error.message.includes("deadbeef"), "salt must be redacted");
       assert.ok(error.message.includes("[redacted]"));

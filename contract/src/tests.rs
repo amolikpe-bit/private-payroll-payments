@@ -65,7 +65,7 @@ fn hex64(seed: u8) -> String {
 }
 
 fn register(contract: &mut Contract, employer: &str, employee: &str, commitment: &str) {
-    set_context(employer, deposit(EMPLOYEE_RECORD_BYTES), NOW);
+    set_context(employer, deposit(EMPLOYEE_RECORD_BYTES + "employee".len() as u64), NOW);
     contract.register_employee(
         acct(employee),
         commitment.to_string(),
@@ -80,7 +80,7 @@ fn commit(contract: &mut Contract, employer: &str, employee: &str, hash: &str, c
 }
 
 fn schedule(contract: &mut Contract, employer: &str, employee: &str, execute_at: u64) -> u64 {
-    set_context(employer, deposit(PAYOUT_RECORD_BYTES), NOW);
+    set_context(employer, deposit(PAYOUT_RECORD_BYTES + "november".len() as u64), NOW);
     contract.schedule_payout(
         acct(employee),
         hex64(9),
@@ -98,6 +98,18 @@ fn panic_message(payload: Box<dyn Any + Send>) -> String {
     } else {
         String::new()
     }
+}
+
+fn decode_hex(value: &str) -> Vec<u8> {
+    let bytes = value.as_bytes();
+    assert_eq!(bytes.len() % 2, 0, "hex must be even length");
+    let mut out = Vec::with_capacity(bytes.len() / 2);
+    for pair in bytes.chunks_exact(2) {
+        let high = (pair[0] as char).to_digit(16).expect("hex high nibble");
+        let low = (pair[1] as char).to_digit(16).expect("hex low nibble");
+        out.push(((high << 4) | low) as u8);
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -632,7 +644,11 @@ fn expire_payout_rejects_before_grace() {
 // ---------------------------------------------------------------------------
 
 fn create_hold(contract: &mut Contract, caller: &str, employer: &str, hold_id: &str, reason: &str) {
-    set_context(caller, deposit(HOLD_RECORD_BYTES), NOW);
+    set_context(
+        caller,
+        deposit(HOLD_RECORD_BYTES + hold_id.len() as u64 + "alice.near".len() as u64),
+        NOW,
+    );
     contract.create_audit_hold(
         hold_id.to_string(),
         acct(employer),
@@ -665,6 +681,20 @@ fn hold_lifecycle_as_employer() {
     assert_eq!(hold.released_by, Some(acct("acme.near")));
     assert_eq!(hold.released_at, Some(NOW + 5));
     assert_eq!(hold.release_reason, Some(HoldReason::ManualReviewRequested));
+}
+
+#[test]
+fn hold_ids_are_enumerable() {
+    let mut contract = setup();
+    create_hold(&mut contract, "acme.near", "acme.near", "hold-1", "KYC_REVIEW_PENDING");
+    create_hold(&mut contract, "acme.near", "acme.near", "hold-2", "OTHER");
+
+    let ids = contract.get_hold_ids(acct("acme.near"), 0, 10);
+    assert_eq!(ids, vec!["hold-1".to_string(), "hold-2".to_string()]);
+    assert_eq!(
+        contract.get_hold_ids(acct("acme.near"), 1, 10),
+        vec!["hold-2".to_string()]
+    );
 }
 
 #[test]
@@ -722,7 +752,11 @@ fn revoke_auditor_removes_hold_rights() {
     contract.grant_auditor(acct("acme.near"), acct("auditor.near"));
     contract.revoke_auditor(acct("acme.near"), acct("auditor.near"));
 
-    set_context("auditor.near", deposit(HOLD_RECORD_BYTES), NOW);
+    set_context(
+        "auditor.near",
+        deposit(HOLD_RECORD_BYTES + "hold-revoked".len() as u64 + "acme.near".len() as u64),
+        NOW,
+    );
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         contract.create_audit_hold(
             "hold-revoked".to_string(),
@@ -808,7 +842,7 @@ fn verification_key_registry_is_owner_managed() {
 
     let info = contract.get_verification_key_info(id).expect("vk info");
     assert_eq!(info.description, "multiplier2");
-    assert_eq!(info.key, crate::hex_encode(&vk_bytes));
+    assert_eq!(info.key, vk_bytes);
     assert_eq!(
         contract.get_verification_key(id).expect("raw vk"),
         vk_bytes
@@ -909,6 +943,68 @@ fn groth16_fixture_proof_verifies_and_replay_is_rejected() {
     }));
     let payload = replay.expect_err("replay must be rejected");
     assert!(panic_message(payload).contains("ProofAlreadyUsed"));
+}
+
+#[test]
+fn groth16_evm_order_rejected() {
+    let mut contract = setup();
+    set_context("owner.near", zero(), NOW);
+    let id = contract.add_verification_key(fixture_vk_bytes(), "multiplier2".to_string());
+
+    // EIP-197-style bytes swap the Fq2 real/imaginary halves of each G2 point.
+    let mut evm_proof = fixture_proof_bytes();
+    for start in [64usize, 128usize] {
+        for index in 0..32 {
+            evm_proof.swap(start + index, start + 32 + index);
+        }
+    }
+    let public_inputs = fixture_public_inputs();
+    set_context("acme.near", deposit(NULLIFIER_RECORD_BYTES), NOW);
+
+    let rejected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        contract.verify_proof(evm_proof, public_inputs.clone(), id)
+    }));
+    if let Ok(accepted) = rejected {
+        assert!(!accepted, "EVM-order proof bytes must not verify");
+    }
+
+    // A rejected encoding must not consume the real proof's nullifier.
+    let proof = fixture_proof_bytes();
+    assert!(contract.verify_proof(proof, public_inputs, id));
+}
+
+#[test]
+fn groth16_one_bit_flip_rejected() {
+    let mut contract = setup();
+    set_context("owner.near", zero(), NOW);
+    let id = contract.add_verification_key(fixture_vk_bytes(), "multiplier2".to_string());
+
+    let mut flipped = fixture_proof_bytes();
+    flipped[0] ^= 1;
+    let public_inputs = fixture_public_inputs();
+    set_context("acme.near", deposit(NULLIFIER_RECORD_BYTES), NOW);
+    let rejected = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        contract.verify_proof(flipped, public_inputs.clone(), id)
+    }));
+    if let Ok(accepted) = rejected {
+        assert!(!accepted, "one-bit-flipped proof must not verify");
+    }
+
+    let proof = fixture_proof_bytes();
+    assert!(contract.verify_proof(proof, public_inputs, id));
+}
+
+const TS_PREIMAGE_HEX: &str = "737562726f73612f636f6d6d69742f76310f000000737562726f73612e746573746e65740d000000616c6963652e746573746e657413000000757364632e746f6b656e732e746573746e65740700000000000000d20a3f4eeee073c3f60fe98e0100000020000000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const TS_COMMITMENT: &str = "2352e17857723f925f4774a0eb12ffbe51f1f7d81c7ce075ed69927db9ce0485";
+
+#[test]
+fn commitment_preimage_matches_ts_vector() {
+    set_context("owner.near", zero(), NOW);
+    let preimage = decode_hex(TS_PREIMAGE_HEX);
+    assert_eq!(
+        crate::hex_encode(&env::sha256(&preimage)),
+        TS_COMMITMENT
+    );
 }
 
 // ---------------------------------------------------------------------------

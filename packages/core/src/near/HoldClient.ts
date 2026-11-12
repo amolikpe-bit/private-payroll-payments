@@ -13,6 +13,9 @@ import {
   assertNonEmptyString,
   parseHoldEntry,
   requireAccountId,
+  storageDepositNear,
+  assertPageLimit,
+  assertU32,
 } from "./entries.js";
 import { ValidationError } from "../core/errors.js";
 
@@ -67,16 +70,19 @@ export class HoldClient {
   constructor(private readonly near: NearContractWrapper) {}
 
   async createAuditHold(args: CreateAuditHoldArgs, opts?: NearContractCallOptions): Promise<void> {
+    const holdId = assertNonEmptyString(args.holdId, "holdId");
+    const scopeId = assertNonEmptyString(args.scopeId, "scopeId");
+    const idBytes = new TextEncoder().encode(holdId).length + new TextEncoder().encode(scopeId).length;
     await this.near.call<null>(
       "create_audit_hold",
       {
-        hold_id: assertNonEmptyString(args.holdId, "holdId"),
+        hold_id: holdId,
         employer: requireAccountId(args.employer, "employer"),
         scope: assertHoldScope(args.scope, "scope"),
-        scope_id: assertNonEmptyString(args.scopeId, "scopeId"),
+        scope_id: scopeId,
         reason_code: normalizeHoldReasonCode(args.reasonCode, "reasonCode"),
       },
-      opts,
+      { ...opts, deposit: opts?.deposit ?? storageDepositNear(186 + idBytes) },
     );
   }
 
@@ -85,6 +91,19 @@ export class HoldClient {
       hold_id: assertNonEmptyString(holdId, "holdId"),
     });
     return parseHoldEntry(result);
+  }
+
+  /** List hold ids for an employer from the on-chain index (500 max per page). */
+  async listHoldIds(employer: string, fromIndex = 0, limit = 500): Promise<string[]> {
+    const result = await this.near.view<string[]>("get_hold_ids", {
+      employer: requireAccountId(employer, "employer"),
+      from_index: assertU32(fromIndex, "fromIndex"),
+      limit: assertPageLimit(limit, "limit"),
+    });
+    if (!Array.isArray(result) || result.some((id) => typeof id !== "string")) {
+      throw new ValidationError("get_hold_ids returned a malformed list.", "holdIds");
+    }
+    return result;
   }
 
   async releaseAuditHold(

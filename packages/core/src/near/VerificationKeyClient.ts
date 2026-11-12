@@ -11,7 +11,7 @@ import { bytesToHex, hexToBytes } from "../crypto/hashUtils.js";
 import { InvalidResponseError, ValidationError } from "../core/errors.js";
 import type { VerificationKeyInfo } from "../types.js";
 import type { NearContractWrapper, NearContractCallOptions } from "./NearContractWrapper.js";
-import { assertU32, assertNonEmptyString, parseCount, parseBoolean } from "./entries.js";
+import { assertU32, assertNonEmptyString, parseCount, parseBoolean, storageDepositNear } from "./entries.js";
 
 function toByteArray(value: Uint8Array | string, field: string): number[] {
   let bytes: Uint8Array;
@@ -140,7 +140,7 @@ export class VerificationKeyClient {
         public_inputs: [...publicInputs],
         verification_key_id: assertU32(verificationKeyId, "verificationKeyId"),
       },
-      opts,
+      { ...opts, deposit: opts?.deposit ?? storageDepositNear(73) },
     );
     return parseBoolean(result, "verify_proof");
   }

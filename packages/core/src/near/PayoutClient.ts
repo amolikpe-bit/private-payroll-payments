@@ -22,8 +22,34 @@ import {
   parsePayoutArray,
   parsePayoutEntry,
   requireAccountId,
+  storageDepositNear,
 } from "./entries.js";
 
+import { ValidationError } from "../core/errors.js";
+
+export const CANCELLATION_REASON_CODES = [
+  "insufficient_funds",
+  "duplicate_run",
+  "employee_dispute",
+  "compliance_hold",
+  "schedule_error",
+  "other",
+] as const;
+
+export type CancellationReasonCode = (typeof CANCELLATION_REASON_CODES)[number];
+
+function assertCancellationReason(value: unknown): CancellationReasonCode {
+  if (
+    typeof value !== "string" ||
+    !(CANCELLATION_REASON_CODES as readonly string[]).includes(value)
+  ) {
+    throw new ValidationError(
+      "reasonCode must be one of the six documented cancellation codes.",
+      "reasonCode",
+    );
+  }
+  return value as CancellationReasonCode;
+}
 export interface SchedulePayoutArgs {
   employee: string;
   commitmentHash: string;
@@ -43,16 +69,21 @@ export class PayoutClient {
 
   /** Schedule a payout and return the per-employer payout id (1-based). */
   async schedulePayout(args: SchedulePayoutArgs, opts?: NearContractCallOptions): Promise<number> {
+    const memo = args.memo ?? "";
+    const memoBytes = new TextEncoder().encode(memo).length;
+    if (memoBytes > 256) {
+      throw new ValidationError("memo must be at most 256 UTF-8 bytes.", "memo");
+    }
     const result = await this.near.call<number>(
       "schedule_payout",
       {
         employee: requireAccountId(args.employee, "employee"),
         commitment_hash: normalizeCommitmentHash(args.commitmentHash, "commitmentHash"),
         asset: requireAccountId(args.asset, "asset"),
-        memo: args.memo ?? "",
+        memo,
         execute_at: assertTimestampNs(args.executeAt, "executeAt"),
       },
-      opts,
+      { ...opts, deposit: opts?.deposit ?? storageDepositNear(258 + memoBytes) },
     );
     return parseCount(result, "schedule_payout");
   }
@@ -62,7 +93,7 @@ export class PayoutClient {
       "cancel_payout",
       {
         payout_id: assertSafeU64(args.payoutId, "payoutId"),
-        reason_code: assertNonEmptyString(args.reasonCode, "reasonCode"),
+        reason_code: assertCancellationReason(args.reasonCode),
       },
       opts,
     );
