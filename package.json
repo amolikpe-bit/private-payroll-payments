@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "npm@10.8.2",
-  "workspaces": ["packages/*"],
+  "workspaces": ["packages/*", "relayer"],
   "engines": {
     "node": ">=22.22.2"
   },
@@ -11,7 +11,10 @@
     "build": "npm run -w near-subrosa-core build",
     "typecheck": "npm run -w near-subrosa-core typecheck",
     "test": "npm run -w near-subrosa-core test",
-    "clean": "npm run -w near-subrosa-core clean"
+    "clean": "npm run -w near-subrosa-core clean",
+    "demo": "npm run build && node scripts/demo.ts",
+    "check:oneclick": "node scripts/check-oneclick-schema.ts",
+    "test:relayer": "npm run -w near-subrosa-relayer test"
   },
   "devDependencies": {
     "turbo": "^2.0.0"

@@ -9,6 +9,13 @@ export * from "./core/idempotency.js";
 export * from "./crypto/hashUtils.js";
 
 export * from "./near/index.js";
+export * from "./near/client.js";
+
+export * from "./flows/index.js";
+export * from "./wallet/index.js";
+export * from "./indexer/index.js";
+export * from "./audit/index.js";
+export * from "./testing/index.js";
 
 export * from "./batch/index.js";
 export * from "./payroll/index.js";
@@ -26,5 +33,6 @@ export * from "./intents/OneClickClient.js";
 export * from "./intents/signer.js";
 export * from "./intents/ConfidentialPayout.js";
 export * from "./intents/UserSession.js";
+export * from "./intents/backendAuth.js";
 
 export * from "./store/PrivateStore.js";

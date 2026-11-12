@@ -49,6 +49,47 @@ export interface IntentPayloadSigner {
   signPayload(payload: Nep413Payload): Promise<SignedIntentMessage>;
 }
 
+/** Decoded NEP-413 payload with the nonce as raw bytes. */
+export interface DecodedIntentPayload {
+  message: string;
+  recipient: string;
+  nonce: Uint8Array;
+  callbackUrl?: string;
+}
+
+/**
+ * Validate a `/v0/generate-intent` payload and decode its base64 nonce.
+ * Every signer path (local account, wallet connector) uses this so the exact
+ * wire payload is enforced in one place.
+ */
+export function decodeIntentPayload(payload: Nep413Payload): DecodedIntentPayload {
+  if (typeof payload !== "object" || payload === null) {
+    throw new Nep413SignerError("INVALID_PAYLOAD", "Intent payload must be an object.");
+  }
+  if (typeof payload.message !== "string" || payload.message.length === 0) {
+    throw new Nep413SignerError("INVALID_PAYLOAD", "Intent payload message must be non-empty.");
+  }
+  if (payload.recipient !== INTENTS_ACCOUNT_ID) {
+    throw new Nep413SignerError(
+      "INVALID_PAYLOAD",
+      `Intent payload recipient must be ${INTENTS_ACCOUNT_ID}.`,
+    );
+  }
+  if (typeof payload.nonce !== "string" || !BASE64.test(payload.nonce)) {
+    throw new Nep413SignerError("INVALID_NONCE", "Intent payload nonce must be base64.");
+  }
+  const nonce = Buffer.from(payload.nonce, "base64");
+  if (nonce.length !== NONCE_BYTES) {
+    throw new Nep413SignerError("INVALID_NONCE", "Intent payload nonce must decode to 32 bytes.");
+  }
+  return {
+    message: payload.message,
+    recipient: payload.recipient,
+    nonce,
+    ...(payload.callbackUrl === undefined ? {} : { callbackUrl: payload.callbackUrl }),
+  };
+}
+
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const NONCE_BYTES = 32;
 
@@ -114,25 +155,7 @@ export class Nep413Signer implements IntentPayloadSigner {
    * curve-prefixed base58 signature expected in `signedData`.
    */
   async signPayload(payload: Nep413Payload): Promise<SignedIntentMessage> {
-    if (typeof payload !== "object" || payload === null) {
-      throw new Nep413SignerError("INVALID_PAYLOAD", "Intent payload must be an object.");
-    }
-    if (typeof payload.message !== "string" || payload.message.length === 0) {
-      throw new Nep413SignerError("INVALID_PAYLOAD", "Intent payload message must be non-empty.");
-    }
-    if (payload.recipient !== INTENTS_ACCOUNT_ID) {
-      throw new Nep413SignerError(
-        "INVALID_PAYLOAD",
-        `Intent payload recipient must be ${INTENTS_ACCOUNT_ID}.`,
-      );
-    }
-    if (typeof payload.nonce !== "string" || !BASE64.test(payload.nonce)) {
-      throw new Nep413SignerError("INVALID_NONCE", "Intent payload nonce must be base64.");
-    }
-    const nonce = Buffer.from(payload.nonce, "base64");
-    if (nonce.length !== NONCE_BYTES) {
-      throw new Nep413SignerError("INVALID_NONCE", "Intent payload nonce must decode to 32 bytes.");
-    }
+    const decoded = decodeIntentPayload(payload);
 
     await this.assertFullAccessKey();
 
@@ -141,10 +164,10 @@ export class Nep413Signer implements IntentPayloadSigner {
       signed = await signMessage({
         signerAccount: this.#account,
         payload: {
-          message: payload.message,
-          recipient: payload.recipient,
-          nonce,
-          callbackUrl: payload.callbackUrl,
+          message: decoded.message,
+          recipient: decoded.recipient,
+          nonce: decoded.nonce,
+          ...(decoded.callbackUrl === undefined ? {} : { callbackUrl: decoded.callbackUrl }),
         },
       });
     } catch {
