@@ -88,9 +88,13 @@ function isDefaultFieldSet(fields: ReadonlySet<string>): boolean {
   return true;
 }
 
-function buildFieldSet(options: RedactionOptions = {}): Set<string> {
+function buildFieldSet(options: RedactionOptions = {}): ReadonlySet<string> {
+  const additional = options.additionalFields;
+  if (!Array.isArray(additional) || additional.length === 0) {
+    return DEFAULT_FIELD_SET;
+  }
   const set = new Set(DEFAULT_SENSITIVE_FIELDS);
-  for (const field of options.additionalFields ?? []) {
+  for (const field of additional) {
     if (typeof field === "string" && field.length > 0) {
       set.add(field);
     }

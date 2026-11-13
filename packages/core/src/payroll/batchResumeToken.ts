@@ -11,10 +11,10 @@
  * (batch count, processed count) before a checkpoint is trusted to skip work.
  */
 
-import { createHash } from "node:crypto";
 import { computeBatchEntriesCommitment } from "../batch/commitment.js";
 import { assertValidPageSize, iterateBatches } from "../batch/paginate.js";
 import { ValidationError } from "../core/errors.js";
+import { sha256Hex } from "../crypto/hashUtils.js";
 
 /** Current resume-token schema version. */
 export const RESUME_TOKEN_VERSION = 1 as const;
@@ -68,7 +68,7 @@ export interface ResumeTokenOptions {
 const COMMITMENT_PATTERN = /^[0-9a-f]{64}$/;
 
 function checksumPayload(payload: string): string {
-  return createHash("sha256").update(payload, "utf8").digest("hex").slice(0, 16);
+  return sha256Hex(payload).slice(0, 16);
 }
 
 function totalBatchesFor(totalItems: number, batchSize: number): number {

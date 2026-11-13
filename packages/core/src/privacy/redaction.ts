@@ -8,7 +8,7 @@
  * aggregate metadata visible.
  */
 
-import { createHash } from "node:crypto";
+import { sha256Hex } from "../crypto/hashUtils.js";
 
 /** Replacement used for every fully hidden value. */
 export const REDACTED_REPLACEMENT = "[REDACTED]";
@@ -53,5 +53,5 @@ export function redactIdentifier(value: string | undefined, reveal = false): str
 
 /** Stable, non-reversible employee reference for exports that need a join key. */
 export function hashEmployeeReferenceId(employeeReferenceId: string): string {
-  return createHash("sha256").update(employeeReferenceId, "utf8").digest("hex");
+  return sha256Hex(employeeReferenceId);
 }
