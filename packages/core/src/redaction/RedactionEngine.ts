@@ -54,6 +54,40 @@ const DEFAULT_SENSITIVE_FIELDS: readonly string[] = Object.freeze([
 /** A NEAR-formatted secret key (`ed25519:<base58>` / `secp256k1:<base58>`). */
 const NEAR_SECRET_KEY_PATTERN = /\b(?:ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]{40,100}\b/g;
 
+const DEFAULT_FIELD_SET: ReadonlySet<string> = new Set(DEFAULT_SENSITIVE_FIELDS);
+const FIELD_PATTERNS = new Map<string, RegExp>(
+  DEFAULT_SENSITIVE_FIELDS.map((field) => [
+    field,
+    new RegExp(`(${escapeRegExp(field)}\\s*[:=]\\s*)([^\\s,;}\\]]+)`, "gi"),
+  ]),
+);
+const MESSAGE_CACHE = new Map<string, string>();
+const MESSAGE_CACHE_LIMIT = 128;
+
+function fieldPattern(field: string): RegExp {
+  const existing = FIELD_PATTERNS.get(field);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const pattern = new RegExp(`(${escapeRegExp(field)}\\s*[:=]\\s*)([^\\s,;}\\]]+)`, "gi");
+  if (FIELD_PATTERNS.size < MESSAGE_CACHE_LIMIT) {
+    FIELD_PATTERNS.set(field, pattern);
+  }
+  return pattern;
+}
+
+function isDefaultFieldSet(fields: ReadonlySet<string>): boolean {
+  if (fields.size !== DEFAULT_FIELD_SET.size) {
+    return false;
+  }
+  for (const field of DEFAULT_SENSITIVE_FIELDS) {
+    if (!fields.has(field)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function buildFieldSet(options: RedactionOptions = {}): Set<string> {
   const set = new Set(DEFAULT_SENSITIVE_FIELDS);
   for (const field of options.additionalFields ?? []) {
@@ -155,13 +189,36 @@ function redactMessage(
   sensitiveFields: ReadonlySet<string>,
   replacement: string
 ): string {
+  const cacheable =
+    replacement === DEFAULT_REDACTION_REPLACEMENT && isDefaultFieldSet(sensitiveFields);
+  if (cacheable) {
+    const cached = MESSAGE_CACHE.get(message);
+    if (cached !== undefined) {
+      return cached;
+    }
+  }
+
+  const lower = message.toLowerCase();
   let sanitized = message;
   for (const field of sensitiveFields) {
-    const pattern = new RegExp(`(${escapeRegExp(field)}\\s*[:=]\\s*)([^\\s,;}\\]]+)`, "gi");
-    sanitized = sanitized.replace(pattern, `$1${replacement}`);
+    if (!lower.includes(field.toLowerCase())) {
+      continue;
+    }
+    sanitized = sanitized.replace(fieldPattern(field), `$1${replacement}`);
   }
   // Credentials often appear unlabelled in RPC/client error text.
-  return sanitized.replace(NEAR_SECRET_KEY_PATTERN, replacement);
+  if (lower.includes("ed25519:") || lower.includes("secp256k1:")) {
+    sanitized = sanitized.replace(NEAR_SECRET_KEY_PATTERN, replacement);
+  }
+
+  if (cacheable) {
+    if (MESSAGE_CACHE.size >= MESSAGE_CACHE_LIMIT) {
+      const oldest = MESSAGE_CACHE.keys().next().value;
+      if (oldest !== undefined) MESSAGE_CACHE.delete(oldest);
+    }
+    MESSAGE_CACHE.set(message, sanitized);
+  }
+  return sanitized;
 }
 
 function sanitizeStack(stack: string, originalMessage: string, sanitizedMessage: string): string {

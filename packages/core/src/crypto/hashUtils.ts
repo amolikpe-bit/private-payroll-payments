@@ -15,15 +15,16 @@
  * - salt: hex decoded first, then u32 little-endian length and raw bytes.
  */
 
-import { createHash, timingSafeEqual } from "node:crypto";
+import { hash as cryptoHash, timingSafeEqual } from "node:crypto";
 
 /** Domain separator for per-cycle salary commitments. */
 export const COMMITMENT_DOMAIN = "subrosa/commit/v1";
 /** Domain separator for registry (salary) commitments; `cycle_id` is zero. */
 export const REGISTRATION_DOMAIN = "subrosa/reg/v1";
 
-const COMMITMENT_DOMAIN_BYTES = new TextEncoder().encode(COMMITMENT_DOMAIN);
-const REGISTRATION_DOMAIN_BYTES = new TextEncoder().encode(REGISTRATION_DOMAIN);
+const TEXT_ENCODER = new TextEncoder();
+const COMMITMENT_DOMAIN_BYTES = TEXT_ENCODER.encode(COMMITMENT_DOMAIN);
+const REGISTRATION_DOMAIN_BYTES = TEXT_ENCODER.encode(REGISTRATION_DOMAIN);
 const MAX_BORSH_STRING_BYTES = 1024;
 const MAX_SALT_BYTES = 64;
 const U64_MAX = (1n << 64n) - 1n;
@@ -113,11 +114,11 @@ export function bytesToHex(bytes: Uint8Array): string {
 
 /** SHA-256 of raw bytes or a UTF-8 string, as 64-character lowercase hex. */
 export function sha256Hex(data: Uint8Array | string): string {
-  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  const bytes = typeof data === "string" ? TEXT_ENCODER.encode(data) : data;
   if (!(bytes instanceof Uint8Array)) {
     throw new CommitmentEncodingError("INVALID_HEX", "Expected a Uint8Array or a string.");
   }
-  return createHash("sha256").update(bytes).digest("hex");
+  return cryptoHash("sha256", bytes);
 }
 
 /** Build the exact Borsh preimage hashed for a per-cycle commitment. */
@@ -196,31 +197,62 @@ function buildPreimage(
   amount: number | bigint | string,
   salt: string,
 ): Uint8Array {
+  const employerBytes = borshStringBytes(employer);
+  const employeeBytes = borshStringBytes(employee);
+  const tokenBytes = borshStringBytes(token);
   const saltBytes = encodeSalt(salt);
-  return concatBytes(
-    domain,
-    encodeBorshString(employer),
-    encodeBorshString(employee),
-    encodeBorshString(token),
-    encodeUnsigned(parseUnsigned(cycleId, U64_MAX, "INVALID_CYCLE_ID", "cycleId"), 8),
-    encodeUnsigned(parseUnsigned(amount, U128_MAX, "INVALID_AMOUNT", "amount"), 16),
-    encodeLength(saltBytes.length),
-    saltBytes,
-  );
+  const cycle = parseUnsigned(cycleId, U64_MAX, "INVALID_CYCLE_ID", "cycleId");
+  const value = parseUnsigned(amount, U128_MAX, "INVALID_AMOUNT", "amount");
+  const total =
+    domain.length +
+    4 + employerBytes.length +
+    4 + employeeBytes.length +
+    4 + tokenBytes.length +
+    8 + 16 +
+    4 + saltBytes.length;
+  const out = new Uint8Array(total);
+  const view = new DataView(out.buffer);
+  let offset = 0;
+  out.set(domain, offset);
+  offset += domain.length;
+  offset = writeBytes(view, out, offset, employerBytes);
+  offset = writeBytes(view, out, offset, employeeBytes);
+  offset = writeBytes(view, out, offset, tokenBytes);
+  view.setBigUint64(offset, cycle, true);
+  offset += 8;
+  view.setBigUint64(offset, value & U64_MAX, true);
+  view.setBigUint64(offset + 8, value >> 64n, true);
+  offset += 16;
+  offset = writeBytes(view, out, offset, saltBytes);
+  return out;
 }
 
-function encodeBorshString(value: string): Uint8Array {
+function borshStringBytes(value: string): Uint8Array {
   if (typeof value !== "string" || value.length === 0) {
     throw new CommitmentEncodingError("INVALID_STRING", "Borsh strings must be non-empty.");
   }
-  const bytes = new TextEncoder().encode(value);
+  const bytes = TEXT_ENCODER.encode(value);
   if (bytes.length === 0 || bytes.length > MAX_BORSH_STRING_BYTES) {
     throw new CommitmentEncodingError(
       "INVALID_STRING",
       `Borsh strings must be between 1 and ${MAX_BORSH_STRING_BYTES} UTF-8 bytes.`,
     );
   }
-  return concatBytes(encodeLength(bytes.length), bytes);
+  return bytes;
+}
+
+function writeBytes(
+  view: DataView,
+  out: Uint8Array,
+  offset: number,
+  bytes: Uint8Array,
+): number {
+  if (!Number.isInteger(bytes.length) || bytes.length < 0 || bytes.length > 0xffffffff) {
+    throw new CommitmentEncodingError("INVALID_STRING", "Borsh length is out of range.");
+  }
+  view.setUint32(offset, bytes.length, true);
+  out.set(bytes, offset + 4);
+  return offset + 4 + bytes.length;
 }
 
 function encodeSalt(salt: string): Uint8Array {
@@ -277,40 +309,10 @@ function parseUnsigned(
   return parsed;
 }
 
-function encodeUnsigned(value: bigint, byteLength: number): Uint8Array {
-  const out = new Uint8Array(byteLength);
-  let remaining = value;
-  for (let index = 0; index < byteLength; index += 1) {
-    out[index] = Number(remaining & 0xffn);
-    remaining >>= 8n;
-  }
-  if (remaining !== 0n) {
-    throw new CommitmentEncodingError("INVALID_AMOUNT", "Unsigned integer does not fit.");
-  }
-  return out;
-}
-
-function encodeLength(length: number): Uint8Array {
-  if (!Number.isInteger(length) || length < 0 || length > 0xffffffff) {
-    throw new CommitmentEncodingError("INVALID_STRING", "Borsh length is out of range.");
-  }
-  return encodeUnsigned(BigInt(length), 4);
-}
 
 function normalizeHex64(value: string, code: CommitmentEncodingErrorCode): string {
   if (!isHex64(value)) {
     throw new CommitmentEncodingError(code, "Expected a 64-character hexadecimal digest.");
   }
   return value.toLowerCase();
-}
-
-function concatBytes(...parts: readonly Uint8Array[]): Uint8Array {
-  const total = parts.reduce((sum, part) => sum + part.length, 0);
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const part of parts) {
-    out.set(part, offset);
-    offset += part.length;
-  }
-  return out;
 }

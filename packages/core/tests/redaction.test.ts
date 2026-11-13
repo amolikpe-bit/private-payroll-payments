@@ -132,6 +132,22 @@ describe("redactError", () => {
     assert.equal(sanitized.message, "amount=***");
   });
 
+  it("handles overlapping fields and repeated messages without cache leakage", () => {
+    const message =
+      "auth accessToken=abc token=xyz refreshToken=ref amount=99 tokenSecret=hidden";
+    const first = redactError(new Error(message)).message;
+    const second = redactError(new Error(message)).message;
+    assert.equal(first, second);
+    assert.ok(!first.includes("abc"));
+    assert.ok(!first.includes("xyz"));
+    assert.ok(!first.includes("=ref"));
+    assert.ok(!first.includes("99"));
+    const custom = redactError(new Error("custom=secret token=xyz"), {
+      additionalFields: ["custom"],
+    });
+    assert.equal(custom.message, "custom=[redacted] token=[redacted]");
+  });
+
   it("publishes the default sensitive field list", () => {
     const fields = getDefaultSensitiveFields();
     for (const field of ["employee", "amount", "salt", "witness", "depositAddress", "privateKey"]) {

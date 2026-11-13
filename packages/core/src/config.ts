@@ -10,6 +10,8 @@ export type SubrosaNetwork = "testnet" | "mainnet";
 export interface NearClientConfig {
   network: SubrosaNetwork;
   rpcUrl: string;
+  /** Optional same-network failover endpoints; `rpcUrl` is always primary. */
+  rpcUrls?: readonly string[];
   contractId: string;
   oneClickBaseUrl: string;
 }

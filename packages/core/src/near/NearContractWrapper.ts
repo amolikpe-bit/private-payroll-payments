@@ -102,6 +102,16 @@ export interface NearContractCallOptions {
   idempotencyKey?: string;
 }
 
+export interface NearViewBatchItem {
+  method: string;
+  args?: Record<string, unknown>;
+}
+
+export interface NearViewBatchOptions {
+  /** Maximum in-flight view calls; values above 4 are clamped to 4. */
+  concurrency?: number;
+}
+
 const DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
 
 /**
@@ -172,6 +182,44 @@ export class NearContractWrapper {
     // near-api-js has already JSON-decoded the result; `T` is the contract
     // method's declared result type.
     return (raw ?? null) as T;
+  }
+
+  /**
+   * Read multiple view methods with bounded concurrency (at most four).
+   * Results are returned in request order; the first failure rejects the
+   * whole call, matching sequential behavior.
+   */
+  async viewMany<T>(
+    views: readonly NearViewBatchItem[],
+    options: NearViewBatchOptions = {},
+  ): Promise<T[]> {
+    if (!Array.isArray(views)) {
+      throw new ValidationError("views must be an array.", "views");
+    }
+    const requested = options.concurrency ?? 4;
+    if (!Number.isInteger(requested) || requested < 1) {
+      throw new ValidationError("concurrency must be a positive integer.", "concurrency");
+    }
+    const limit = Math.min(4, requested);
+    if (views.length === 0) {
+      return [];
+    }
+    const results = new Array<T>(views.length);
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      for (;;) {
+        const index = next++;
+        if (index >= views.length) {
+          return;
+        }
+        const item = views[index];
+        results[index] = await this.view<T>(item.method, item.args ?? {});
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(limit, views.length) }, () => worker()),
+    );
+    return results;
   }
 
   /**

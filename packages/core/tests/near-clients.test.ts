@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nearToYocto, teraToGas, type SerializedReturnValue } from "near-api-js";
+import {
+  FailoverRpcProvider,
+  nearToYocto,
+  teraToGas,
+  type SerializedReturnValue,
+} from "near-api-js";
 import { NearConfigPresets } from "../src/config.js";
 import {
   NearContractWrapper,
@@ -10,6 +15,7 @@ import {
   type NearViewFunctionParams,
   type NearViewProvider,
 } from "../src/near/NearContractWrapper.js";
+import { createNearProvider } from "../src/near/client.js";
 import { RegistryClient } from "../src/near/RegistryClient.js";
 import { CommitmentClient } from "../src/near/CommitmentClient.js";
 import { PayoutClient } from "../src/near/PayoutClient.js";
@@ -61,14 +67,23 @@ class FakeAccount implements NearCallAccount {
 class FakeProvider implements NearViewProvider {
   readonly calls: NearViewFunctionParams[] = [];
   queue: Array<unknown | Error> = [null];
+  active = 0;
+  maxActive = 0;
 
   async callFunction<T extends SerializedReturnValue>(
     params: NearViewFunctionParams,
   ): Promise<T | undefined> {
     this.calls.push(params);
-    const next = this.queue.length > 1 ? this.queue.shift() : this.queue[0];
-    if (next instanceof Error) throw next;
-    return next as T | undefined;
+    this.active += 1;
+    this.maxActive = Math.max(this.maxActive, this.active);
+    try {
+      await Promise.resolve();
+      const next = this.queue.length > 1 ? this.queue.shift() : this.queue[0];
+      if (next instanceof Error) throw next;
+      return next as T | undefined;
+    } finally {
+      this.active -= 1;
+    }
   }
 }
 
@@ -120,6 +135,27 @@ test("wrapper.view maps an empty provider result to null", async () => {
   provider.queue = [undefined];
   const { wrapper } = makeWrapper(new FakeAccount(), provider);
   assert.equal(await wrapper.view<unknown>("get_commitment", {}), null);
+});
+
+test("wrapper.viewMany bounds in-flight views to four and preserves order", async () => {
+  const provider = new FakeProvider();
+  provider.queue = [1, 2, 3, 4, 5, 6];
+  const { wrapper } = makeWrapper(new FakeAccount(), provider);
+  const results = await wrapper.viewMany<number>(
+    ["a", "b", "c", "d", "e", "f"].map((method) => ({ method })),
+    { concurrency: 8 },
+  );
+  assert.deepEqual(results, [1, 2, 3, 4, 5, 6]);
+  assert.equal(provider.calls.length, 6);
+  assert.ok(provider.maxActive <= 4);
+});
+
+test("createNearProvider uses native failover for multiple endpoints", () => {
+  const provider = createNearProvider({
+    ...NearConfigPresets.testnet(),
+    rpcUrls: ["https://rpc2.testnet.near.org"],
+  });
+  assert.ok(provider instanceof FailoverRpcProvider);
 });
 
 test("wrapper.call uses the v7 account shape, FINAL wait, and yocto/TGas helpers", async () => {

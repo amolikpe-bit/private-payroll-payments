@@ -7,7 +7,7 @@
  * one config so callers cannot accidentally mix contract accounts/networks.
  */
 
-import { JsonRpcProvider } from "near-api-js";
+import { FailoverRpcProvider, JsonRpcProvider } from "near-api-js";
 
 import type { NearClientConfig } from "../config.js";
 import { CommitmentClient } from "./CommitmentClient.js";
@@ -47,7 +47,13 @@ export function createNearProvider(config: NearClientConfig): NearViewProvider {
   if (typeof config !== "object" || config === null || typeof config.rpcUrl !== "string") {
     throw new Error("createNearProvider requires a NearClientConfig with an rpcUrl.");
   }
-  return new JsonRpcProvider({ url: config.rpcUrl }) as NearViewProvider;
+  const urls = [config.rpcUrl, ...(config.rpcUrls ?? [])].filter(
+    (url, index, all) => url.length > 0 && all.indexOf(url) === index,
+  );
+  const providers = urls.map((url) => new JsonRpcProvider({ url }));
+  return (providers.length === 1
+    ? providers[0]
+    : new FailoverRpcProvider(providers)) as NearViewProvider;
 }
 
 /**
