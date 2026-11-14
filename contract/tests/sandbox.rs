@@ -61,9 +61,7 @@ const PROOF_JSON: &str = include_str!("../testdata/groth16/multiplier2/proof.jso
 const PUBLIC_JSON: &str = include_str!("../testdata/groth16/multiplier2/public.json");
 const VK_JSON: &str = include_str!("../testdata/groth16/multiplier2/verification_key.json");
 
-// ---------------------------------------------------------------------------
 // Serialization and fixtures
-// ---------------------------------------------------------------------------
 
 async fn serial() -> MutexGuard<'static, ()> {
     TEST_LOCK.lock().await
@@ -182,9 +180,7 @@ fn contract_wasm() -> &'static [u8] {
     WASM.as_slice()
 }
 
-// ---------------------------------------------------------------------------
 // Call and assertion helpers
-// ---------------------------------------------------------------------------
 
 fn deposit_for(bytes: usize) -> NearToken {
     NearToken::from_yoctonear(YOCTO_PER_BYTE * bytes as u128)
@@ -362,9 +358,7 @@ async fn schedule(
     .await
 }
 
-// ---------------------------------------------------------------------------
 // Registry, commitments, paging, and pause
-// ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn sandbox_registry_commitments_and_pause() {
@@ -1140,9 +1134,7 @@ async fn sandbox_registry_commitments_and_pause() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Payout lifecycle, failures, and fast-forward expiry
-// ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn sandbox_payout_lifecycle_and_expiry() {
@@ -1627,9 +1619,7 @@ async fn sandbox_payout_lifecycle_and_expiry() {
     assert_eq!(pending[0].employee, *employee.id());
 }
 
-// ---------------------------------------------------------------------------
 // Holds and auditor roles
-// ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn sandbox_holds_and_auditor_roles() {
@@ -2019,9 +2009,7 @@ async fn sandbox_holds_and_auditor_roles() {
     assert!(missing.is_none());
 }
 
-// ---------------------------------------------------------------------------
 // Groth16 fixture: verify, negative encodings, replay, insufficient gas
-// ---------------------------------------------------------------------------
 
 fn fixture_json(text: &str) -> Value {
     near_sdk::serde_json::from_str(text).expect("fixture is valid JSON")

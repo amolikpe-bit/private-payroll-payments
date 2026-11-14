@@ -47,7 +47,7 @@ salts stay in memory and never reach contract arguments, logs, or error text.
 
 ## Quickstart: do this, see that
 
-Node.js 22.22.2 or newer, then:
+Node.js 26.0.0 or newer, then:
 
 ```bash
 npm install
@@ -212,11 +212,13 @@ and download the nearcore 2.14.0 sandbox binary on their first run.
 `SUBROSA_NETWORK`, `NEAR_RPC_URL`, `SUBROSA_CONTRACT`, `ONECLICK_BASE_URL`,
 `ONECLICK_API_KEY`, `SUBROSA_DEV_KEY`, `SUBROSA_STORE_PATH`.
 
-Pinned toolchain: Rust 1.95 (edition 2024), near-sdk 5.30.1,
+Pinned toolchain: Rust 1.95 (edition 2024), near-sdk 5.30.2,
 near-sdk-contract-tools 4.0.0, near-workspaces 0.24.0, cargo-near 0.23.0,
-near-cli-rs 0.31.1, nearcore sandbox 2.14.0, Node.js >= 22.22.2, npm 10.8.2
-(`packageManager`). The SDK pins near-api-js 7.5.3, near-social-js 2.0.4,
-`@hot-labs/near-connect` 0.12.0, snarkjs 0.7.6, and axios 1.21.1 exactly.
+near-cli-rs 0.31.1, nearcore sandbox 2.14.0, Node.js >= 26.0.0, npm 12.2.1
+(`packageManager`). The SDK pins near-api-js 7.5.3, near-social-js 2.0.4 and
+`@hot-labs/near-connect` 0.12.0; the root `overrides` entry resolves
+`near-kit` to exactly ONE 0.20.2 version. The Groth16 test fixtures were
+generated with snarkjs 0.7.6 (see `contract/testdata/groth16/multiplier2/README.md`).
 
 ## Limits and out of scope
 

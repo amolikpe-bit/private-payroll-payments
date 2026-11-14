@@ -393,9 +393,7 @@ impl Contract {
         contract
     }
 
-    // ------------------------------------------------------------------
     // Registry
-    // ------------------------------------------------------------------
 
     /// Registers an employee for the predecessor employer.
     ///
@@ -551,9 +549,7 @@ impl Contract {
         self.employees.contains_key(&(employer, employee))
     }
 
-    // ------------------------------------------------------------------
     // Salary commitments
-    // ------------------------------------------------------------------
 
     /// Stores one commitment hash for a (employee, cycle). The registered
     /// employee's token is recorded alongside. Requires a deposit covering
@@ -697,9 +693,7 @@ impl Contract {
             .unwrap_or(0)
     }
 
-    // ------------------------------------------------------------------
     // Payout lifecycle
-    // ------------------------------------------------------------------
 
     /// Schedules a payout for `execute_at` (nanoseconds). Returns the 1-based
     /// per-employer payout id. Requires a deposit covering
@@ -946,9 +940,7 @@ impl Contract {
             .unwrap_or(false)
     }
 
-    // ------------------------------------------------------------------
     // Holds and auditor roles
-    // ------------------------------------------------------------------
 
     /// Places an active audit hold. Authorized for the employer or one of its
     /// auditors. `reason_code` must be one of the seven uppercase codes.
@@ -1131,7 +1123,5 @@ impl Contract {
         self.set_is_paused(paused);
     }
 
-    // ------------------------------------------------------------------
     // Groth16 verification (implemented in `groth16.rs`)
-    // ------------------------------------------------------------------
 }

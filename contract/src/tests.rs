@@ -112,9 +112,7 @@ fn decode_hex(value: &str) -> Vec<u8> {
     out
 }
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 fn fixture_json(text: &str) -> Value {
     serde_json::from_str(text).expect("fixture is valid JSON")
@@ -184,9 +182,7 @@ fn fixture_public_inputs() -> Vec<String> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Init, pause, owner
-// ---------------------------------------------------------------------------
 
 #[test]
 fn new_contract_starts_unpaused_with_empty_indexes() {
@@ -233,9 +229,7 @@ fn writes_are_rejected_while_paused() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Registry
-// ---------------------------------------------------------------------------
 
 #[test]
 fn register_employee_stores_row_and_emits_event() {
@@ -352,9 +346,7 @@ fn get_employees_rejects_out_of_range_limit() {
     contract.get_employees(acct("acme.near"), 0, 0);
 }
 
-// ---------------------------------------------------------------------------
 // Commitments
-// ---------------------------------------------------------------------------
 
 #[test]
 fn commit_salary_upserts_and_tracks_distinct_cycles() {
@@ -469,9 +461,7 @@ fn batch_commit_requires_storage_deposit() {
     }]);
 }
 
-// ---------------------------------------------------------------------------
 // Payout lifecycle
-// ---------------------------------------------------------------------------
 
 #[test]
 fn schedule_payout_assigns_one_based_ids() {
@@ -639,9 +629,7 @@ fn expire_payout_rejects_before_grace() {
     contract.expire_payout(payout_id);
 }
 
-// ---------------------------------------------------------------------------
 // Holds and auditors
-// ---------------------------------------------------------------------------
 
 fn create_hold(contract: &mut Contract, caller: &str, employer: &str, hold_id: &str, reason: &str) {
     set_context(
@@ -825,9 +813,7 @@ fn hold_reason_rejects_lowercase_code() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Groth16 verification keys and proofs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn verification_key_registry_is_owner_managed() {
@@ -1007,9 +993,7 @@ fn commitment_preimage_matches_ts_vector() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Events
-// ---------------------------------------------------------------------------
 
 #[test]
 fn event_payloads_are_nep297() {

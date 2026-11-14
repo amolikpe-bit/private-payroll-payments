@@ -43,7 +43,7 @@ never invents a value: it fails closed if the capture is absent or invalid.
 ```bash
 cd ~/work/subrosa
 
-# Prerequisites: Rust 1.95.0, Node >= 22.22.2, npm install.
+# Prerequisites: Rust 1.95.0, Node >= 26.0.0, npm install.
 # The sandbox test needs a wasm build; build it with cargo-near 0.23.0:
 cargo near build non-reproducible-wasm
 # (or point SUBROSA_CONTRACT_WASM at an existing artifact)
@@ -73,7 +73,7 @@ The script exits non-zero when `--capture` is omitted, the file is missing or
 empty, the marker line is malformed or conflicting, the JSON shape/price is
 invalid, the storage delta is not 374 B, or the gas is not the pinned value.
 The 50-entry batch/redaction checks live in
-`packages/core/tests/numbers-redaction.test.ts` and run with `npm test`.
+`packages/core/tests/behavior.test.ts` (consolidated behavior suite) and run with `npm test`.
 
 ### Rerun proof
 

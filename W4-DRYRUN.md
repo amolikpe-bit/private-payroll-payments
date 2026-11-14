@@ -17,7 +17,7 @@ node scripts/w4-dry-run.ts
 
 Prerequisites:
 
-- Node.js `>=22.22.2` runs the `.ts` script directly (the repo engine; type stripping).
+- Node.js `>=26.0.0` runs the `.ts` script directly (the repo engine; type stripping).
 - Network access to `https://1click.chaindefuser.com` is needed for quote requests and the payout preflight's token/quote lookups.
 - No environment variables are required. `ONECLICK_API_KEY` and `ONECLICK_USER_SESSION` are ignored; the client uses an empty API key and an anonymous transport.
 

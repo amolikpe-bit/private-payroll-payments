@@ -22,11 +22,11 @@ export const COMMITMENT_DOMAIN = "subrosa/commit/v1";
 /** Domain separator for registry (salary) commitments; `cycle_id` is zero. */
 export const REGISTRATION_DOMAIN = "subrosa/reg/v1";
 
-const TEXT_ENCODER = new TextEncoder();
-const COMMITMENT_DOMAIN_BYTES = TEXT_ENCODER.encode(COMMITMENT_DOMAIN);
-const REGISTRATION_DOMAIN_BYTES = TEXT_ENCODER.encode(REGISTRATION_DOMAIN);
-const MAX_BORSH_STRING_BYTES = 1024;
-const MAX_SALT_BYTES = 64;
+const ENC = new TextEncoder();
+const COMMIT_BYTES = ENC.encode(COMMITMENT_DOMAIN);
+const REG_BYTES = ENC.encode(REGISTRATION_DOMAIN);
+const MAX_STR = 1024;
+const MAX_SALT = 64;
 const U64_MAX = (1n << 64n) - 1n;
 const U128_MAX = (1n << 128n) - 1n;
 const HEX64 = /^[0-9a-fA-F]{64}$/;
@@ -110,7 +110,7 @@ export function bytesToHex(bytes: Uint8Array): string {
 
 /** SHA-256 of raw bytes or a UTF-8 string, as 64-character lowercase hex. */
 export function sha256Hex(data: Uint8Array | string): string {
-  const bytes = typeof data === "string" ? TEXT_ENCODER.encode(data) : data;
+  const bytes = typeof data === "string" ? ENC.encode(data) : data;
   if (!(bytes instanceof Uint8Array)) {
     throw new CommitmentEncodingError("INVALID_HEX", "Expected a Uint8Array or a string.");
   }
@@ -123,7 +123,7 @@ export function buildCommitmentPreimage(input: CommitmentPreimageInput): Uint8Ar
     throw new CommitmentEncodingError("INVALID_STRING", "Commitment input must be an object.");
   }
   return buildPreimage(
-    COMMITMENT_DOMAIN_BYTES,
+    COMMIT_BYTES,
     input.employer,
     input.employee,
     input.token,
@@ -142,7 +142,7 @@ export function buildRegistrationPreimage(input: RegistrationPreimageInput): Uin
     throw new CommitmentEncodingError("INVALID_STRING", "Registration input must be an object.");
   }
   return buildPreimage(
-    REGISTRATION_DOMAIN_BYTES,
+    REG_BYTES,
     input.employer,
     input.employee,
     input.token,
@@ -227,11 +227,11 @@ function borshStringBytes(value: string): Uint8Array {
   if (typeof value !== "string" || value.length === 0) {
     throw new CommitmentEncodingError("INVALID_STRING", "Borsh strings must be non-empty.");
   }
-  const bytes = TEXT_ENCODER.encode(value);
-  if (bytes.length === 0 || bytes.length > MAX_BORSH_STRING_BYTES) {
+  const bytes = ENC.encode(value);
+  if (bytes.length === 0 || bytes.length > MAX_STR) {
     throw new CommitmentEncodingError(
       "INVALID_STRING",
-      `Borsh strings must be between 1 and ${MAX_BORSH_STRING_BYTES} UTF-8 bytes.`,
+      `Borsh strings must be between 1 and ${MAX_STR} UTF-8 bytes.`,
     );
   }
   return bytes;
@@ -267,10 +267,10 @@ function encodeSalt(salt: string): Uint8Array {
     }
     throw error;
   }
-  if (bytes.length === 0 || bytes.length > MAX_SALT_BYTES) {
+  if (bytes.length === 0 || bytes.length > MAX_SALT) {
     throw new CommitmentEncodingError(
       "INVALID_SALT",
-      `Commitment salt must be between 1 and ${MAX_SALT_BYTES} bytes.`,
+      `Commitment salt must be between 1 and ${MAX_SALT} bytes.`,
     );
   }
   return bytes;
