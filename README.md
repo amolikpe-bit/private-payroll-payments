@@ -1,8 +1,6 @@
 # subrosa
 
-Private payroll on NEAR. Employers register workers, publish commitment hashes, and settle via **Confidential Intents**. Public state hides amounts and payer-payee links.
-
-The contract records commitment hashes, payout state, audit holds, and auditor roles. It never holds funds. Settlement runs off chain on the 1Click Confidential Intents API and reports via `mark_settled` or `mark_failed`.
+Private payroll on NEAR. Employers register workers, publish commitment hashes, and settle via **Confidential Intents**; public state hides amounts and payer-payee links. The contract never holds funds: settlement runs off chain on the 1Click Confidential Intents API and reports via `mark_settled` or `mark_failed`.
 
 License: MIT (see `LICENSE`, which retains the origin copyright notice, and `ATTRIBUTION.md`). Tracks: `privacy`, `realworld`. Baseline: tag `pre-hackathon` marks the imported upstream tree (`zkpayroll/zk-payroll-sdk`) at `b7bafa5`; full accounting under "Baseline and disclosure" below. Q-015 (second project on the same email): **krater** (AMM pool, tracks `defi`).
 
@@ -11,69 +9,39 @@ sequenceDiagram
     accTitle: subrosa runtime flow
     accDescr: Employer registers workers, commits hashed salaries, verifies proofs, then pays out privately and settles payout state.
     autonumber
-    box rgba(243,232,255,0.12) On-chain settlement
     participant C as Contract
     participant R as Relayer
-    end
-    box rgba(255,244,214,0.12) Client
     participant S as SDK
-    participant N as near-social
-    end
-    box rgba(230,247,235,0.12) 1Click Intents
     participant O as 1Click session
-    end
-    rect rgba(226,238,255,0.20)
-    Note over R,C: PHASE 1 — register worker
+    participant N as near-social
+    Note over R,C: PHASE 1 - register worker
     S->>R: signedDelegate, register_employee
     R->>R: policy check, one FunctionCall, 100 TGas cap
     R->>+C: relay meta tx, deposit 567 B plus metadata
     C-->>-S: EmployeeRegistered
-    end
-    rect rgba(230,247,235,0.20)
-    Note over S,C: PHASE 2 — commit salary batch
+    Note over S,C: PHASE 2 - commit salary batch
     S->>S: Borsh preimage 186 B, sha256 hash
-    S->>R: signedDelegate, commit_salary
-    R->>+C: relay meta tx, exact 374 B deposit
-    C->>C: store hash, no amount
-    C-->>-S: SalaryCommitted
-    Note over C: one write burns 2.348758401541 TGas gross
-    end
-    rect rgba(255,244,214,0.20)
-    Note over S,C: PHASE 3 — recompute and compare the commitment
-    S->>S: rebuild Borsh preimage, compare hash
-    alt amount changed
-        S-->>S: reject, no proof
-    end
-    end
-    rect rgba(243,232,255,0.20)
-    Note over S,C: PHASE 4 — verify commitment on chain
+    S->>+C: relay commit_salary, exact 374 B deposit
+    C-->>-S: SalaryCommitted (hash stored, no amount; 2.348758401541 TGas gross)
+    Note over S,C: PHASE 3 - recompute and compare the commitment; reject on change, no proof
     opt Groth16 verifier enabled
         S->>+C: verify_proof
         C-->>-S: ProofVerified
     end
-    end
-    rect rgba(255,232,232,0.20)
-    Note over S,O: PHASE 5 — private payout
-    S->>S: schedule_payout, hold gate, destination gate
-    S->>O: dry quote, no deposit address
+    Note over S,O: PHASE 4 - private payout: hold gate, destination gate, dry quote
     alt no User-Session
         O-->>S: 401 gate, fail closed
     else session present
         S->>+O: /v0/auth/authenticate, /v0/submit-intent, /v0/status
         O-->>-S: SUCCESS or FAILED or REFUNDED
     end
-    end
-    rect rgba(224,247,250,0.20)
-    Note over S,N: PHASE 6 — settle payout
+    Note over S,C,N: PHASE 5 - settle payout: SocialDB audit entry, hashes only
     alt SUCCESS
         S->>R: mark_settled
     else FAILED or REFUNDED
         S->>R: mark_failed
     end
-    R->>+C: relay meta tx
-    C-->>-S: PayoutStateChanged
-    S->>N: SocialDB audit entry, hashes only
-    end
+    C-->>S: PayoutStateChanged
 ```
 
 ## What is built
@@ -85,16 +53,11 @@ sequenceDiagram
 | Relayer | `relayer/` (`near-subrosa-relayer`) | NEP-366 meta transactions: an employer with zero NEAR can register and commit. Employees need no NEAR account |
 | Entry points | `scripts/`, `examples/`, `testdata/` | Zero-funds demo, measured numbers, OpenAPI field check, two dry-run examples, pinned 1Click OpenAPI 0.1.10 snapshot |
 
-Contract surface: `new`. Enrolment uses `register_employee`, `update_employee`, and `deactivate_employee`, plus paginated views. `commit_salary` and `batch_commit_salaries` take 1-50 items.
+Contract surface: `new`; enrolment via `register_employee`, `update_employee`, `deactivate_employee`, plus paginated views; `commit_salary` and `batch_commit_salaries` take 1-50 items; payouts: `schedule_payout`, `cancel_payout`, `mark_settled`, `mark_failed`, `expire_payout`, `is_payout_due`.
 
-Payouts: `schedule_payout`, `cancel_payout`, `mark_settled`, `mark_failed`, `expire_payout`, `is_payout_due`.
+Holds and governance: `create_audit_hold`, `release_audit_hold`, `grant_auditor`, `revoke_auditor`, owner-only `set_pause`, verification keys, and Groth16 `verify_proof`. Events use NEP-297 standard `subrosa` (`1.0.0`): `EmployeeRegistered`, `EmployeeUpdated`, `SalaryCommitted`, `AuditorChanged`, `PayoutScheduled`, `PayoutStateChanged`, `AuditHoldChanged`, `ProofVerified`.
 
-Holds and governance: `create_audit_hold`, `release_audit_hold`, `grant_auditor`, `revoke_auditor`, owner-only `set_pause`, verification keys, and Groth16 `verify_proof`.
-
-Events use NEP-297 standard `subrosa` (`1.0.0`): `EmployeeRegistered`, `EmployeeUpdated`, `SalaryCommitted`, `AuditorChanged`, `PayoutScheduled`, `PayoutStateChanged`, `AuditHoldChanged`, `ProofVerified`.
-
-Flow: register -> commit -> schedule (`PrivatePayoutFlow`) -> hold gate -> destination gate -> commitment check -> quote.
-Next: NEP-413 sign -> `/v0/submit-intent` -> poll -> `mark_settled` (`SUCCESS`) or `mark_failed` (`FAILED`/`REFUNDED`).
+Flow: register -> commit -> schedule (`PrivatePayoutFlow`) -> hold gate -> destination gate -> commitment check -> quote; then NEP-413 sign -> `/v0/submit-intent` -> poll -> `mark_settled` (`SUCCESS`) or `mark_failed` (`FAILED`/`REFUNDED`).
 `PayrollService.processPayment` enforces every gate. Amounts and salts stay in memory and never enter args, logs, or errors.
 
 ## Quickstart: do this, see that
@@ -126,8 +89,6 @@ The demo builds the SDK first and needs network access to 1Click and nothing els
 [9/9] summary: commitments=3 confidentialDryQuotes=0 publicDryQuotes=1 confidential=gated resumed=1 secretsLeaked=0 fundsMoved=0
 ```
 
-Stages: config, `/v0/tokens` asset lookup, three commitment hashes, batch check, confidential quote, public dry quote, resume token, redaction, summary.
-
 Without funds, it tests commitment hashes, batch validation, confidential request validation (401 gate), and a public dry quote. It also tests opaque-token batch resume and secret redaction across output. It fails closed on non-dry quotes, deposit addresses in dry quotes, unexpected errors, rejected tokens, or printed secrets.
 
 ## Confidential Intents
@@ -135,7 +96,6 @@ Without funds, it tests commitment hashes, batch validation, confidential reques
 **Confidential Intents** is the 1Click private shard (`CONFIDENTIAL_INTENTS` for `recipientType`, `depositType`, `refundType`). The SDK keeps these as plain JSON strings so no nested private-intents type crosses the client boundary.
 
 - `OneClickClient` covers all fourteen 1Click paths: `/v0/generate-intent`, `/v0/submit-intent`, `/v0/quote`, `/v0/status`, `/v0/auth/authenticate`, balances, history.
-- `confidentiality` picks `public`, `basic`, or `advanced` shielding.
 - `ConfidentialPayout` owns quote -> sign -> submit -> poll. It maps `SUCCESS`, `FAILED`, `REFUNDED`, `INCOMPLETE_DEPOSIT`.
 - Partner JWT travels only in `X-API-Key`. It never enters a URL, error, or returned object.
 
@@ -155,9 +115,8 @@ Supply `ONECLICK_USER_SESSION` to take the live confidential dry-quote path; inv
 
 ## Headline number
 
-One salary commitment costs **374 B = 0.00374 NEAR** of storage and burns **2.348758401541 TGas** gross.
+One salary commitment costs **374 B = 0.00374 NEAR** of storage and burns **2.348758401541 TGas** gross (measured `total_gas_burnt` for one `commit_salary` write; a 50-item batch reserves 0.187 NEAR).
 Storage matches `storage_usage` delta at 1e19 yoctoNEAR/byte (`COMMITMENT_RECORD_BYTES`, asserted on chain).
-Gas is measured `total_gas_burnt` for one `commit_salary` write. A 50-item batch reserves 0.187 NEAR.
 
 `scripts/numbers.ts` reduces one capture file to the two deltas above. It fails closed if the capture is missing, malformed, or differs from the pinned claim. A valid run ends with `OK: capture matches the pinned claim in NUMBERS.md.`; `--json` writes machine-readable output for diffing. See `NUMBERS.md` for full accounting, the capture command, and rerun proof.
 
@@ -194,8 +153,7 @@ Sandbox tests need `cargo near build non-reproducible-wasm` (`target/near/subros
 
 `.env.example` documents runtime vars (`.env` stays git-ignored): `SUBROSA_NETWORK`, `NEAR_RPC_URL`, `SUBROSA_CONTRACT`, `ONECLICK_BASE_URL`, `ONECLICK_API_KEY`, `SUBROSA_DEV_KEY`, `SUBROSA_STORE_PATH`.
 
-Toolchain: Rust >= 1.95 (tested 1.100.0, edition 2024), near-sdk 5.30.2, near-sdk-contract-tools 4.0.0, near-workspaces 0.24.0, cargo-near 0.23.0. Also near-cli-rs 0.31.1, nearcore sandbox 2.14.0, Node.js >= 26.0.0, npm 12.2.1 (`packageManager`).
-SDK pins near-api-js 7.5.3, near-social-js 2.0.4, `@hot-labs/near-connect` 0.12.0. Root `overrides` pins ONE `near-kit` 0.20.2. Groth16 fixtures come from snarkjs 0.7.6 (`contract/testdata/groth16/multiplier2/README.md`).
+Toolchain: Rust >= 1.95 (tested 1.100.0, edition 2024), near-sdk 5.30.2, near-sdk-contract-tools 4.0.0, near-workspaces 0.24.0, cargo-near 0.23.0, near-cli-rs 0.31.1, nearcore sandbox 2.14.0, Node.js >= 26.0.0, npm 12.2.1. SDK pins near-api-js 7.5.3, near-social-js 2.0.4, `@hot-labs/near-connect` 0.12.0; root `overrides` pin one `near-kit` 0.20.2; Groth16 fixtures come from snarkjs 0.7.6 (`contract/testdata/groth16/multiplier2/README.md`).
 
 ## Limits and out of scope
 
@@ -205,7 +163,6 @@ SDK pins near-api-js 7.5.3, near-social-js 2.0.4, `@hot-labs/near-connect` 0.12.
 - **Amendments, archive, reconciliation, disputes, webhooks.** Not ported.
 - **On-chain amount reveal or commitment checks.** NEAR state is public. Clients verify commitments off chain. Disclosure uses CSV from `AuditorDisclosureExporter`.
 - **Atomic on-chain payout or balance calls.** Settlement is off chain via Confidential Intents. Async outcomes cannot roll back on chain.
-- **Companion contracts from origin.** Their license metadata is `NOASSERTION`. They are not copied. `contract/` is clean-room.
 - **KYC/sanctions integrations and hosted indexer.** The SDK provides an event cursor and idempotent processor. No indexer service is deployed.
 - **Hosted relayer, backend, or UI.** Relayer runs locally on testnet.
 
@@ -237,10 +194,6 @@ Origin companion contracts carry `NOASSERTION` license metadata and are excluded
 - Diff: `git diff pre-hackathon..hackathon-submission`. After publishing, https://github.com/<owner>/<repo>/compare/pre-hackathon...hackathon-submission.
 - Libraries, templates and AI-generated code are listed in `ATTRIBUTION.md`.
 
-## License
+## License and hackathon
 
-MIT. See `LICENSE` (which retains the origin copyright notice) and `ATTRIBUTION.md`.
-
-## Hackathon
-
-Tracks: `privacy`, `realworld`. Development ends 2026-11-14T23:59:00Z (UTC).
+MIT. See `LICENSE` (which retains the origin copyright notice) and `ATTRIBUTION.md`. Tracks: `privacy`, `realworld`. Development ends 2026-11-14T23:59:00Z (UTC).
