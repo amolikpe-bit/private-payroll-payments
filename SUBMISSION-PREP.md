@@ -51,8 +51,8 @@ Never add `website`. Print full JSON, wait for explicit yes. 201 saved. 400 fix 
 
 - Q-003: 10 pre-existing tags, none of `pre-hackathon` / `hackathon-submission`, no README diff link. **Not satisfied**. Local tags deliberately not created.
 - Q-012 video required when judges cannot open the demo.
-- Q-014 `LICENSE` present. Q-017 README "Quickstart: do this, see that" at line 48 and "Zero-funds demo" at line 72.
-- Q-015 second project on same email must be named in README. Unresolved.
+- Q-014 `LICENSE` present. Q-017 README "Quickstart: do this, see that" under "## Quickstart: do this, see that" and "Zero-funds demo" under "## Zero-funds demo" (line numbers drift as the README is trimmed; grep the headings).
+- Q-015 second project on same email must be named in README. Done: README names **krater** (AMM pool, tracks `defi`).
 - W8 verdict is CORRECTED/BOUNDED: core nearcore UPHELD for that state only. dRPC gateway N<=3 oracle-equal, N>=4 HTTP 400 code 31. No 20.67x / N=20 / FALSIFIED claims.
 
 ## Blockers (do not block submission)
