@@ -42,8 +42,8 @@ use near_sdk_contract_tools::pause::Pause;
 
 use crate::events::{Event, ProofVerifiedData};
 use crate::{
-    hex_encode, Contract, ContractExt, VerificationKeyInfo, MAX_VK_DESCRIPTION_BYTES,
-    NULLIFIER_RECORD_BYTES,
+    Contract, ContractExt, MAX_VK_DESCRIPTION_BYTES, NULLIFIER_RECORD_BYTES, VerificationKeyInfo,
+    hex_encode,
 };
 
 /// Bytes in a G1 point (`x ‖ y`).
@@ -253,8 +253,11 @@ fn parse_vk(bytes: &[u8]) -> Option<VerificationKey<'_>> {
     if bytes.len() < VK_HEADER_BYTES {
         return None;
     }
-    let ic_count = u32::from_le_bytes(bytes[VK_HEADER_BYTES - 4..VK_HEADER_BYTES].try_into().ok()?)
-        as usize;
+    let ic_count = u32::from_le_bytes(
+        bytes[VK_HEADER_BYTES - 4..VK_HEADER_BYTES]
+            .try_into()
+            .ok()?,
+    ) as usize;
     if ic_count == 0 {
         return None;
     }
@@ -297,15 +300,8 @@ fn parse_vk(bytes: &[u8]) -> Option<VerificationKey<'_>> {
 /// Checks that a serialized G1/G2 point is a whole number of canonical field
 /// elements. Curve membership is enforced by the host functions.
 fn canonical_point(point: &[u8]) -> bool {
-    point.len() % 32 == 0 && point.chunks_exact(32).all(is_canonical_fq)
-}
-
-fn is_canonical_fq(raw: &[u8]) -> bool {
-    let value: [u8; 32] = match raw.try_into() {
-        Ok(value) => value,
-        Err(_) => return false,
-    };
-    lt_le(&value, &FIELD_MODULUS)
+    let (chunks, rem) = point.as_chunks::<32>();
+    rem.is_empty() && chunks.iter().all(|c| lt_le(c, &FIELD_MODULUS))
 }
 
 /// Little-endian 256-bit `a < b`.
@@ -344,10 +340,7 @@ impl Contract {
         }
         let mut nullifier = [0u8; 32];
         nullifier.copy_from_slice(&env::sha256(&proof_bytes));
-        require!(
-            !self.used_proofs.contains(&nullifier),
-            "ProofAlreadyUsed"
-        );
+        require!(!self.used_proofs.contains(&nullifier), "ProofAlreadyUsed");
 
         if !verify_groth16(&proof_bytes, &public_inputs, &vk_bytes) {
             return false;
@@ -396,10 +389,7 @@ impl Contract {
     pub fn set_active_verification_key(&mut self, id: u32) {
         Self::require_owner();
         Self::require_unpaused();
-        require!(
-            self.vks.contains_key(&id),
-            "Unknown verification key id"
-        );
+        require!(self.vks.contains_key(&id), "Unknown verification key id");
         self.active_vk = id;
     }
 

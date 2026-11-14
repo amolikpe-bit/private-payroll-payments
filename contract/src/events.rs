@@ -4,7 +4,7 @@
 //! explicit version. Payload structs are wrapped in `Vec<_>` so the `data` field
 //! is always a JSON array. Every `*_ns` field is `env::block_timestamp()`.
 
-use near_sdk::{near, AccountId};
+use near_sdk::{AccountId, near};
 
 use crate::{HoldScope, HoldState, PayoutState};
 

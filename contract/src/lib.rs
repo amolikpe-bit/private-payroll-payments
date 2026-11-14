@@ -26,7 +26,7 @@
 
 use near_sdk::borsh::BorshSerialize;
 use near_sdk::store::{IterableMap, LookupMap, LookupSet};
-use near_sdk::{env, near, require, AccountId, BorshStorageKey, NearToken, PanicOnDefault};
+use near_sdk::{AccountId, BorshStorageKey, NearToken, PanicOnDefault, env, near, require};
 use near_sdk_contract_tools::owner::Owner;
 use near_sdk_contract_tools::pause::Pause;
 
@@ -76,11 +76,7 @@ pub const MAX_HOLD_ID_BYTES: usize = 128;
 /// other collection is keyed by employer so per-employer views never need a
 /// prefix scan; the matching `*_count` / `*_ids` collections carry the small
 /// per-employer indexes.
-#[derive(
-    near_sdk_contract_tools::Owner,
-    near_sdk_contract_tools::Pause,
-    PanicOnDefault,
-)]
+#[derive(near_sdk_contract_tools::Owner, near_sdk_contract_tools::Pause, PanicOnDefault)]
 #[near(contract_state)]
 pub struct Contract {
     /// (employer, employee) registry.
@@ -556,12 +552,7 @@ impl Contract {
     /// [`COMMITMENT_RECORD_BYTES`]; re-committing an existing cycle overwrites
     /// the hash without increasing the count.
     #[payable]
-    pub fn commit_salary(
-        &mut self,
-        employee: AccountId,
-        commitment_hash: String,
-        cycle_id: u64,
-    ) {
+    pub fn commit_salary(&mut self, employee: AccountId, commitment_hash: String, cycle_id: u64) {
         Self::require_unpaused();
         Self::assert_storage_deposit(COMMITMENT_RECORD_BYTES);
         Self::assert_commitment_hash(&commitment_hash);
@@ -574,7 +565,11 @@ impl Contract {
             .unwrap_or_else(|| env::panic_str("Employee not registered"));
 
         let key = (employer.clone(), employee.clone(), cycle_id);
-        let created_at = match self.commitments.get(&key).map(|existing| existing.created_at) {
+        let created_at = match self
+            .commitments
+            .get(&key)
+            .map(|existing| existing.created_at)
+        {
             Some(created_at) => created_at,
             None => {
                 let count = self
@@ -617,9 +612,7 @@ impl Contract {
             items.len() <= MAX_BATCH_COMMITS,
             "Batch exceeds the 50 commit cap"
         );
-        Self::assert_storage_deposit(
-            COMMITMENT_RECORD_BYTES.saturating_mul(items.len() as u64),
-        );
+        Self::assert_storage_deposit(COMMITMENT_RECORD_BYTES.saturating_mul(items.len() as u64));
 
         let employer = env::predecessor_account_id();
         let mut prepared: Vec<(CommitItem, AccountId)> = Vec::with_capacity(items.len());
@@ -709,15 +702,14 @@ impl Contract {
     ) -> u64 {
         Self::require_unpaused();
         Self::assert_commitment_hash(&commitment_hash);
-        require!(memo.len() <= MAX_MEMO_BYTES, "memo must be at most 256 bytes");
+        require!(
+            memo.len() <= MAX_MEMO_BYTES,
+            "memo must be at most 256 bytes"
+        );
         Self::assert_storage_deposit(PAYOUT_RECORD_BYTES + memo.len() as u64);
 
         let employer = env::predecessor_account_id();
-        let mut ids = self
-            .payout_ids
-            .get(&employer)
-            .cloned()
-            .unwrap_or_default();
+        let mut ids = self.payout_ids.get(&employer).cloned().unwrap_or_default();
         require!(
             ids.len() < MAX_INDEX_ENTRIES as usize,
             "Payout index is capped at 500 per employer"
@@ -907,11 +899,7 @@ impl Contract {
             (1..=MAX_PAGE_LIMIT).contains(&limit),
             "limit must be between 1 and 500"
         );
-        let ids = self
-            .payout_ids
-            .get(&employer)
-            .cloned()
-            .unwrap_or_default();
+        let ids = self.payout_ids.get(&employer).cloned().unwrap_or_default();
         ids.into_iter()
             .skip(from_index as usize)
             .filter_map(|payout_id| {
@@ -934,8 +922,7 @@ impl Contract {
         self.payouts
             .get(&(employer, payout_id))
             .map(|payout| {
-                payout.state == PayoutState::Pending
-                    && env::block_timestamp() >= payout.execute_at
+                payout.state == PayoutState::Pending && env::block_timestamp() >= payout.execute_at
             })
             .unwrap_or(false)
     }
@@ -963,9 +950,7 @@ impl Contract {
             !scope_id.is_empty() && scope_id.len() <= MAX_HOLD_ID_BYTES,
             "scope_id must be 1..=128 bytes"
         );
-        Self::assert_storage_deposit(
-            HOLD_RECORD_BYTES + (hold_id.len() + scope_id.len()) as u64,
-        );
+        Self::assert_storage_deposit(HOLD_RECORD_BYTES + (hold_id.len() + scope_id.len()) as u64);
         let reason = parse_hold_reason(&reason_code)
             .unwrap_or_else(|| env::panic_str("Unknown hold reason code"));
 
@@ -1017,12 +1002,7 @@ impl Contract {
 
     /// Returns the per-employer hold-id index, paginated like the other
     /// index views (`1..=500`).
-    pub fn get_hold_ids(
-        &self,
-        employer: AccountId,
-        from_index: u32,
-        limit: u32,
-    ) -> Vec<String> {
+    pub fn get_hold_ids(&self, employer: AccountId, from_index: u32, limit: u32) -> Vec<String> {
         require!(
             (1..=MAX_PAGE_LIMIT).contains(&limit),
             "limit must be between 1 and 500"

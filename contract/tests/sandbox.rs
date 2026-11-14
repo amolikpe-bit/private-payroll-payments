@@ -32,18 +32,18 @@
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-use near_sdk::serde::de::DeserializeOwned;
-use near_sdk::serde_json::{json, Value};
 use near_sdk::AccountId;
+use near_sdk::serde::de::DeserializeOwned;
+use near_sdk::serde_json::{Value, json};
 use near_workspaces::network::Sandbox;
 use near_workspaces::result::{ExecutionFinalResult, ExecutionSuccess};
 use near_workspaces::types::{Gas, NearToken};
 use near_workspaces::{Account, Contract, Worker};
 use subrosa_contract::{
-    CommitItem, CommitmentEntry, EmployeeEntry, HoldEntry, HoldReason, HoldScope, HoldState,
-    PayoutEntry, PayoutState, VerificationKeyInfo, COMMITMENT_RECORD_BYTES, EMPLOYEE_RECORD_BYTES,
-    GRACE_NS, HOLD_RECORD_BYTES, MAX_BATCH_COMMITS, MAX_METADATA_BYTES, NULLIFIER_RECORD_BYTES,
-    PAYOUT_RECORD_BYTES,
+    COMMITMENT_RECORD_BYTES, CommitItem, CommitmentEntry, EMPLOYEE_RECORD_BYTES, EmployeeEntry,
+    GRACE_NS, HOLD_RECORD_BYTES, HoldEntry, HoldReason, HoldScope, HoldState, MAX_BATCH_COMMITS,
+    MAX_METADATA_BYTES, NULLIFIER_RECORD_BYTES, PAYOUT_RECORD_BYTES, PayoutEntry, PayoutState,
+    VerificationKeyInfo,
 };
 use tokio::sync::{Mutex, MutexGuard};
 
@@ -1401,7 +1401,10 @@ async fn sandbox_payout_lifecycle_and_expiry() {
         )
         .await,
     );
-    assert_eq!(payout(&fixture, cancelled).await.state, PayoutState::Cancelled);
+    assert_eq!(
+        payout(&fixture, cancelled).await.state,
+        PayoutState::Cancelled
+    );
     expect_failure(
         call(
             &fixture.employer,
@@ -1501,7 +1504,9 @@ async fn sandbox_payout_lifecycle_and_expiry() {
     let per_block = delta_ns / delta_height;
     assert!(per_block > 0, "sandbox block time must be positive");
 
-    let due_at = advanced.timestamp().saturating_add(per_block.saturating_mul(25));
+    let due_at = advanced
+        .timestamp()
+        .saturating_add(per_block.saturating_mul(25));
     let upcoming: u64 = success_json(
         schedule(
             &fixture,
@@ -1615,7 +1620,11 @@ async fn sandbox_payout_lifecycle_and_expiry() {
         }),
     )
     .await;
-    assert_eq!(pending.len(), 1, "the due-but-not-expired payout remains pending");
+    assert_eq!(
+        pending.len(),
+        1,
+        "the due-but-not-expired payout remains pending"
+    );
     assert_eq!(pending[0].employee, *employee.id());
 }
 
@@ -2084,12 +2093,7 @@ fn fixture_public_inputs() -> Vec<String> {
         .as_array()
         .expect("public array")
         .iter()
-        .map(|value| {
-            value
-                .as_str()
-                .expect("decimal string")
-                .to_string()
-        })
+        .map(|value| value.as_str().expect("decimal string").to_string())
         .collect()
 }
 
@@ -2106,9 +2110,7 @@ fn evm_order_proof() -> Vec<u8> {
 
 fn assert_not_verified(outcome: ExecutionFinalResult) {
     if let Ok(success) = outcome.into_result() {
-        let verified: bool = success
-            .json()
-            .expect("verify_proof returns a JSON boolean");
+        let verified: bool = success.json().expect("verify_proof returns a JSON boolean");
         assert!(!verified, "invalid proof encoding must not verify");
     }
 }
@@ -2116,9 +2118,7 @@ fn assert_not_verified(outcome: ExecutionFinalResult) {
 fn assert_insufficient_gas(outcome: ExecutionFinalResult) {
     match outcome.into_result() {
         Ok(success) => {
-            let verified: bool = success
-                .json()
-                .expect("verify_proof returns a JSON boolean");
+            let verified: bool = success.json().expect("verify_proof returns a JSON boolean");
             assert!(!verified, "5 Tgas must not verify the fixture proof");
         }
         Err(failure) => {
@@ -2194,12 +2194,7 @@ async fn sandbox_groth16_fixture() {
         .await,
     );
     assert_eq!(key_id, 1);
-    let count: u32 = view(
-        &fixture.contract,
-        "get_verification_key_count",
-        json!({}),
-    )
-    .await;
+    let count: u32 = view(&fixture.contract, "get_verification_key_count", json!({})).await;
     assert_eq!(count, 1);
     let active: u32 = view(
         &fixture.contract,
@@ -2386,10 +2381,7 @@ async fn sandbox_groth16_fixture() {
         .iter()
         .map(|line| (*line).to_string())
         .collect::<Vec<_>>();
-    assert!(
-        success_json::<bool>(accepted),
-        "fixture proof must verify"
-    );
+    assert!(success_json::<bool>(accepted), "fixture proof must verify");
     assert!(
         logs.iter()
             .any(|line| line.contains("EVENT_JSON:") && line.contains("proof_verified")),

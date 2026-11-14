@@ -8,17 +8,17 @@
 use std::any::Any;
 
 use near_sdk::serde_json::{self, Value};
-use near_sdk::test_utils::{get_logs, VMContextBuilder};
-use near_sdk::{env, testing_env, AccountId, NearToken};
+use near_sdk::test_utils::{VMContextBuilder, get_logs};
+use near_sdk::{AccountId, NearToken, env, testing_env};
 
 use crate::events::Event;
 use crate::groth16::{
     field_neg, g1_neg, parse_decimal_fr, parse_decimal_u256, validate_verification_key,
 };
 use crate::{
-    CommitItem, Contract, HoldReason, HoldScope, HoldState, PayoutState, COMMITMENT_RECORD_BYTES,
-    EMPLOYEE_RECORD_BYTES, GRACE_NS, HOLD_RECORD_BYTES, MAX_BATCH_COMMITS, NULLIFIER_RECORD_BYTES,
-    PAYOUT_RECORD_BYTES,
+    COMMITMENT_RECORD_BYTES, CommitItem, Contract, EMPLOYEE_RECORD_BYTES, GRACE_NS,
+    HOLD_RECORD_BYTES, HoldReason, HoldScope, HoldState, MAX_BATCH_COMMITS, NULLIFIER_RECORD_BYTES,
+    PAYOUT_RECORD_BYTES, PayoutState,
 };
 
 const NOW: u64 = 1_700_000_000_000_000_000;
@@ -43,11 +43,13 @@ fn zero() -> NearToken {
 /// Installs a VM context. Storage is preserved between calls (near-sdk takes
 /// the trie from the previous mocked blockchain).
 fn set_context(caller: &str, attached: NearToken, timestamp: u64) {
-    testing_env!(VMContextBuilder::new()
-        .predecessor_account_id(acct(caller))
-        .block_timestamp(timestamp)
-        .attached_deposit(attached)
-        .build());
+    testing_env!(
+        VMContextBuilder::new()
+            .predecessor_account_id(acct(caller))
+            .block_timestamp(timestamp)
+            .attached_deposit(attached)
+            .build()
+    );
 }
 
 /// Builds a contract on a fresh mocked trie, so tests stay isolated even when
@@ -65,7 +67,11 @@ fn hex64(seed: u8) -> String {
 }
 
 fn register(contract: &mut Contract, employer: &str, employee: &str, commitment: &str) {
-    set_context(employer, deposit(EMPLOYEE_RECORD_BYTES + "employee".len() as u64), NOW);
+    set_context(
+        employer,
+        deposit(EMPLOYEE_RECORD_BYTES + "employee".len() as u64),
+        NOW,
+    );
     contract.register_employee(
         acct(employee),
         commitment.to_string(),
@@ -80,7 +86,11 @@ fn commit(contract: &mut Contract, employer: &str, employee: &str, hash: &str, c
 }
 
 fn schedule(contract: &mut Contract, employer: &str, employee: &str, execute_at: u64) -> u64 {
-    set_context(employer, deposit(PAYOUT_RECORD_BYTES + "november".len() as u64), NOW);
+    set_context(
+        employer,
+        deposit(PAYOUT_RECORD_BYTES + "november".len() as u64),
+        NOW,
+    );
     contract.schedule_payout(
         acct(employee),
         hex64(9),
@@ -247,9 +257,11 @@ fn register_employee_stores_row_and_emits_event() {
     assert_eq!(entry.updated_at, NOW);
     assert_eq!(contract.get_employee_count(acct("acme.near")), 1);
     assert!(contract.employee_exists(acct("acme.near"), acct("alice.near")));
-    assert!(contract
-        .get_employee(acct("acme.near"), acct("bob.near"))
-        .is_none());
+    assert!(
+        contract
+            .get_employee(acct("acme.near"), acct("bob.near"))
+            .is_none()
+    );
 
     let log = get_logs()
         .into_iter()
@@ -334,9 +346,7 @@ fn get_employees_paginates_and_past_end_is_empty() {
         contract.get_employees(acct("acme.near"), 1, 1),
         vec![acct("bob.near")]
     );
-    assert!(contract
-        .get_employees(acct("acme.near"), 10, 10)
-        .is_empty());
+    assert!(contract.get_employees(acct("acme.near"), 10, 10).is_empty());
 }
 
 #[test]
@@ -397,11 +407,7 @@ fn batch_commit_stores_all_items() {
     register(&mut contract, "acme.near", "alice.near", &hex64(1));
     register(&mut contract, "acme.near", "bob.near", &hex64(2));
 
-    set_context(
-        "acme.near",
-        deposit(2 * COMMITMENT_RECORD_BYTES),
-        NOW,
-    );
+    set_context("acme.near", deposit(2 * COMMITMENT_RECORD_BYTES), NOW);
     contract.batch_commit_salaries(vec![
         CommitItem {
             employee: acct("alice.near"),
@@ -429,9 +435,11 @@ fn batch_commit_stores_all_items() {
             .commitment_hash,
         hex64(4)
     );
-    assert!(get_logs()
-        .iter()
-        .any(|line| line.contains("salary_committed")));
+    assert!(
+        get_logs()
+            .iter()
+            .any(|line| line.contains("salary_committed"))
+    );
 }
 
 #[test]
@@ -493,9 +501,11 @@ fn schedule_payout_assigns_one_based_ids() {
     let page = contract.get_pending_payouts(acct("acme.near"), 1, 10);
     assert_eq!(page.len(), 1);
     assert_eq!(page[0].employee, acct("alice.near"));
-    assert!(contract
-        .get_pending_payouts(acct("acme.near"), 10, 10)
-        .is_empty());
+    assert!(
+        contract
+            .get_pending_payouts(acct("acme.near"), 10, 10)
+            .is_empty()
+    );
 }
 
 #[test]
@@ -523,9 +533,11 @@ fn cancel_payout_moves_pending_to_cancelled() {
     contract.cancel_payout(payout_id, "duplicate_run".to_string());
     let payout = contract.get_payout(acct("acme.near"), payout_id).unwrap();
     assert_eq!(payout.state, PayoutState::Cancelled);
-    assert!(contract
-        .get_pending_payouts(acct("acme.near"), 0, 10)
-        .is_empty());
+    assert!(
+        contract
+            .get_pending_payouts(acct("acme.near"), 0, 10)
+            .is_empty()
+    );
     assert!(!contract.is_payout_due(acct("acme.near"), payout_id));
 }
 
@@ -564,9 +576,11 @@ fn mark_settled_records_intent_hash() {
     let payout = contract.get_payout(acct("acme.near"), payout_id).unwrap();
     assert_eq!(payout.state, PayoutState::Executed);
     assert_eq!(payout.intent_hash, Some(intent_hash));
-    assert!(contract
-        .get_pending_payouts(acct("acme.near"), 0, 10)
-        .is_empty());
+    assert!(
+        contract
+            .get_pending_payouts(acct("acme.near"), 0, 10)
+            .is_empty()
+    );
 }
 
 #[test]
@@ -649,7 +663,13 @@ fn create_hold(contract: &mut Contract, caller: &str, employer: &str, hold_id: &
 #[test]
 fn hold_lifecycle_as_employer() {
     let mut contract = setup();
-    create_hold(&mut contract, "acme.near", "acme.near", "hold-1", "KYC_REVIEW_PENDING");
+    create_hold(
+        &mut contract,
+        "acme.near",
+        "acme.near",
+        "hold-1",
+        "KYC_REVIEW_PENDING",
+    );
 
     let hold = contract.get_audit_hold("hold-1".to_string()).expect("hold");
     assert_eq!(hold.employer, acct("acme.near"));
@@ -674,7 +694,13 @@ fn hold_lifecycle_as_employer() {
 #[test]
 fn hold_ids_are_enumerable() {
     let mut contract = setup();
-    create_hold(&mut contract, "acme.near", "acme.near", "hold-1", "KYC_REVIEW_PENDING");
+    create_hold(
+        &mut contract,
+        "acme.near",
+        "acme.near",
+        "hold-1",
+        "KYC_REVIEW_PENDING",
+    );
     create_hold(&mut contract, "acme.near", "acme.near", "hold-2", "OTHER");
 
     let ids = contract.get_hold_ids(acct("acme.near"), 0, 10);
@@ -712,7 +738,13 @@ fn auditor_can_place_and_release_holds() {
 #[should_panic(expected = "Only the employer or an auditor can create a hold")]
 fn hold_creation_requires_role() {
     let mut contract = setup();
-    create_hold(&mut contract, "mallory.near", "acme.near", "hold-x", "OTHER");
+    create_hold(
+        &mut contract,
+        "mallory.near",
+        "acme.near",
+        "hold-x",
+        "OTHER",
+    );
 }
 
 #[test]
@@ -728,9 +760,11 @@ fn owner_can_grant_auditor_for_any_employer() {
         "hold-owner-grant",
         "TAX_WITHHOLDING_DISCREPANCY",
     );
-    assert!(contract
-        .get_audit_hold("hold-owner-grant".to_string())
-        .is_some());
+    assert!(
+        contract
+            .get_audit_hold("hold-owner-grant".to_string())
+            .is_some()
+    );
 }
 
 #[test]
@@ -784,10 +818,7 @@ fn hold_reason_codes_are_strict_and_complete() {
             "DUPLICATE_PAYMENT_SUSPECTED",
             HoldReason::DuplicatePaymentSuspected,
         ),
-        (
-            "MANUAL_REVIEW_REQUESTED",
-            HoldReason::ManualReviewRequested,
-        ),
+        ("MANUAL_REVIEW_REQUESTED", HoldReason::ManualReviewRequested),
         ("OTHER", HoldReason::Other),
     ];
     for (index, (code, expected)) in cases.into_iter().enumerate() {
@@ -829,10 +860,7 @@ fn verification_key_registry_is_owner_managed() {
     let info = contract.get_verification_key_info(id).expect("vk info");
     assert_eq!(info.description, "multiplier2");
     assert_eq!(info.key, vk_bytes);
-    assert_eq!(
-        contract.get_verification_key(id).expect("raw vk"),
-        vk_bytes
-    );
+    assert_eq!(contract.get_verification_key(id).expect("raw vk"), vk_bytes);
     assert!(contract.get_verification_key_info(2).is_none());
     assert!(contract.get_verification_key(2).is_none());
 
@@ -867,10 +895,12 @@ fn groth16_decimal_parser_and_negation() {
     assert!(parse_decimal_fr("1.5").is_none());
     assert!(parse_decimal_fr("12a").is_none());
     // 2^256 does not fit.
-    assert!(parse_decimal_fr(
-        "115792089237316195423570985008687907853269984665640564039457584007913129639936"
-    )
-    .is_none());
+    assert!(
+        parse_decimal_fr(
+            "115792089237316195423570985008687907853269984665640564039457584007913129639936"
+        )
+        .is_none()
+    );
 
     let zero = [0u8; 32];
     assert_eq!(field_neg(&zero), Some(zero));
@@ -987,10 +1017,7 @@ const TS_COMMITMENT: &str = "2352e17857723f925f4774a0eb12ffbe51f1f7d81c7ce075ed6
 fn commitment_preimage_matches_ts_vector() {
     set_context("owner.near", zero(), NOW);
     let preimage = decode_hex(TS_PREIMAGE_HEX);
-    assert_eq!(
-        crate::hex_encode(&env::sha256(&preimage)),
-        TS_COMMITMENT
-    );
+    assert_eq!(crate::hex_encode(&env::sha256(&preimage)), TS_COMMITMENT);
 }
 
 // Events
@@ -998,10 +1025,7 @@ fn commitment_preimage_matches_ts_vector() {
 #[test]
 fn event_payloads_are_nep297() {
     let variants = [
-        (
-            Event::EmployeeRegistered(vec![]),
-            "employee_registered",
-        ),
+        (Event::EmployeeRegistered(vec![]), "employee_registered"),
         (Event::EmployeeUpdated(vec![]), "employee_updated"),
         (Event::SalaryCommitted(vec![]), "salary_committed"),
         (Event::AuditorChanged(vec![]), "auditor_changed"),
