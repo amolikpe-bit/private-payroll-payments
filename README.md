@@ -8,7 +8,7 @@ Settlement runs off chain on the 1Click Confidential Intents API and reports via
 ## At a glance
 
 - One salary commitment: **374 B = 0.00374 NEAR** of storage and
-  **2.349590622921 TGas** gross, measured from a sandbox capture.
+  **2.348758401541 TGas** gross, measured from a sandbox capture.
 - Zero-funds demo: `npm run demo` — nine stages, dry quotes only,
   `fundsMoved=0`.
 - Quickstart: `npm install && npm run build && node examples/private-payroll-simulation.ts`.
@@ -107,7 +107,7 @@ PIN 3 runs dry quotes only: no deposit address, no signature submission, no fund
 
 ## Headline number (PIN 4)
 
-One salary commitment costs **374 B = 0.00374 NEAR** of storage and burns **2.349590622921 TGas** gross.
+One salary commitment costs **374 B = 0.00374 NEAR** of storage and burns **2.348758401541 TGas** gross.
 Storage matches `storage_usage` delta at 1e19 yoctoNEAR/byte (`COMMITMENT_RECORD_BYTES`, asserted on chain).
 Gas is measured `total_gas_burnt` for one `commit_salary` write. A 50-item batch reserves 0.187 NEAR.
 
@@ -157,7 +157,7 @@ account for storage staking before the first write.
 | `npm run test:relayer` | relayer suite | 46 passed |
 | `npm run check:oneclick` | 1Click OpenAPI fields against the pinned 0.1.10 snapshot | 6 checks passed |
 | `npm run demo` | zero-funds demo | 9/9 stages |
-| `npm run numbers -- --capture target/numbers/capture.log` | reduces the sandbox capture to the measured gas and storage deltas | 2.349590622921 TGas / 374 B |
+| `npm run numbers -- --capture target/numbers/capture.log` | reduces the sandbox capture to the measured gas and storage deltas | 2.348758401541 TGas / 374 B |
 
 Sandbox tests need `cargo near build non-reproducible-wasm` (`target/near/subrosa_contract.wasm` or `SUBROSA_CONTRACT_WASM`) and download nearcore 2.14.0 on first run.
 

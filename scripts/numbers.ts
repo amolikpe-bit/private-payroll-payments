@@ -23,7 +23,7 @@
  *     "captured_at": "<ISO-8601>",
  *     "tx_hash": "<base58>",
  *     "storage_byte_cost_yocto": "10000000000000000000",
- *     "commitment_gas_burnt": "2349590622921",
+ *     "commitment_gas_burnt": "2348758401541",
  *     "commitment_storage_delta": 374
  *   }
  *
@@ -58,7 +58,7 @@ const U64_MAX = (1n << 64n) - 1n;
  * means the claim in `NUMBERS.md` must be re-verified and updated together
  * with these constants; the script never silently reports a different number.
  */
-const PINNED_GAS_BURNT = 2_349_590_622_921n;
+const PINNED_GAS_BURNT = 2_348_758_401_541n;
 const PINNED_STORAGE_DELTA_BYTES = 374n;
 
 

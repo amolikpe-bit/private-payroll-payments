@@ -14,7 +14,7 @@ node scripts/w4-dry-run.ts     -> EXIT 0, 10/10, secretHits=0
 node scripts/check-oneclick-schema.ts -> EXIT 0, 6/6
 npm run test:relayer           -> EXIT 0
 cargo near check --clippy                                         -> EXIT 0
-cargo near build non-reproducible-wasm                            -> EXIT 0 (276,914 B)
+cargo near build non-reproducible-wasm                            -> EXIT 0 (276,150 B)
 cargo test --lib -p subrosa-contract                              -> 46 passed / 0 failed
 cargo test -p subrosa-contract --test sandbox                     -> 4 passed / 0 failed
 git diff --check                                                  -> clean
@@ -68,11 +68,11 @@ same requestId.
 
 ## Blockers (do not block submission)
 
-None on build/test gates: Celesto Box B executed `cargo fmt --check`,
-`cargo clippy`, `cargo near check --clippy`, `cargo near build`, `cargo test`
-(46 unit + 4 sandbox), `oxlint` (0/0), and Node/TS gates cleanly.
-HELD: 64 ABI-distinct cargo major-version pairs. BoxLite §6 MEASURED
-`uScD0lurFrem`.
+No build or test blockers remain.
+Celesto Box B passed `cargo fmt --check`, `cargo clippy`, `cargo near check --clippy`, and `cargo near build`.
+It also passed `cargo test` (46 unit + 4 sandbox).
+It also passed `oxlint` (0/0) and all Node/TS gates.
+HELD: 64 ABI-distinct cargo major-version pairs. BoxLite §6 MEASURED `uScD0lurFrem`.
 
 ## Attestation
 

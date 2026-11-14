@@ -346,9 +346,17 @@ impl Contract {
 
     /// Returns whether `account` is an auditor for `employer`.
     fn is_auditor(&self, employer: &AccountId, account: &AccountId) -> bool {
-        self.auditors
+        Self::is_auditor_in(&self.auditors, employer, account)
+    }
+
+    fn is_auditor_in(
+        auditors: &LookupMap<AccountId, LookupSet<AccountId>>,
+        employer: &AccountId,
+        account: &AccountId,
+    ) -> bool {
+        auditors
             .get(employer)
-            .map(|auditors| auditors.contains(account))
+            .map(|set| set.contains(account))
             .unwrap_or(false)
     }
 
@@ -462,21 +470,21 @@ impl Contract {
 
         let employer = env::predecessor_account_id();
         let key = (employer.clone(), employee.clone());
-        let mut entry = self
+        let entry = self
             .employees
-            .get(&key)
-            .cloned()
+            .get_mut(&key)
             .unwrap_or_else(|| env::panic_str("Employee not registered"));
         entry.salary_commitment = salary_commitment.clone();
         entry.updated_at = env::block_timestamp();
-        self.employees.insert(key, entry.clone());
+        let active = entry.active;
+        let at_ns = entry.updated_at;
 
         Event::EmployeeUpdated(vec![EmployeeUpdatedData {
             employer,
             employee,
             commitment_hash: salary_commitment,
-            active: entry.active,
-            at_ns: entry.updated_at,
+            active,
+            at_ns,
         }])
         .emit();
     }
@@ -487,22 +495,22 @@ impl Contract {
 
         let employer = env::predecessor_account_id();
         let key = (employer.clone(), employee.clone());
-        let mut entry = self
+        let entry = self
             .employees
-            .get(&key)
-            .cloned()
+            .get_mut(&key)
             .unwrap_or_else(|| env::panic_str("Employee not registered"));
         require!(entry.active, "Employee already inactive");
         entry.active = false;
         entry.updated_at = env::block_timestamp();
-        self.employees.insert(key, entry.clone());
+        let commitment_hash = entry.salary_commitment.clone();
+        let at_ns = entry.updated_at;
 
         Event::EmployeeUpdated(vec![EmployeeUpdatedData {
             employer,
             employee,
-            commitment_hash: entry.salary_commitment,
+            commitment_hash,
             active: false,
-            at_ns: entry.updated_at,
+            at_ns,
         }])
         .emit();
     }
@@ -764,18 +772,15 @@ impl Contract {
 
         let employer = env::predecessor_account_id();
         let key = (employer.clone(), payout_id);
-        let mut payout = self
+        let payout = self
             .payouts
-            .get(&key)
-            .cloned()
+            .get_mut(&key)
             .unwrap_or_else(|| env::panic_str("Payout not found"));
         require!(
             payout.state == PayoutState::Pending,
             "Payout is not pending"
         );
         payout.state = PayoutState::Cancelled;
-        self.payouts.insert(key, payout);
-
         Event::PayoutStateChanged(vec![PayoutStateChangedData {
             employer,
             payout_id,
@@ -796,10 +801,9 @@ impl Contract {
 
         let employer = env::predecessor_account_id();
         let key = (employer.clone(), payout_id);
-        let mut payout = self
+        let payout = self
             .payouts
-            .get(&key)
-            .cloned()
+            .get_mut(&key)
             .unwrap_or_else(|| env::panic_str("Payout not found"));
         require!(
             payout.state == PayoutState::Pending,
@@ -807,8 +811,6 @@ impl Contract {
         );
         payout.state = PayoutState::Executed;
         payout.intent_hash = Some(intent_hash.clone());
-        self.payouts.insert(key, payout);
-
         Event::PayoutStateChanged(vec![PayoutStateChangedData {
             employer,
             payout_id,
@@ -829,18 +831,15 @@ impl Contract {
 
         let employer = env::predecessor_account_id();
         let key = (employer.clone(), payout_id);
-        let mut payout = self
+        let payout = self
             .payouts
-            .get(&key)
-            .cloned()
+            .get_mut(&key)
             .unwrap_or_else(|| env::panic_str("Payout not found"));
         require!(
             payout.state == PayoutState::Pending,
             "Payout is not pending"
         );
         payout.state = PayoutState::Failed;
-        self.payouts.insert(key, payout);
-
         Event::PayoutStateChanged(vec![PayoutStateChangedData {
             employer,
             payout_id,
@@ -857,10 +856,9 @@ impl Contract {
 
         let employer = env::predecessor_account_id();
         let key = (employer.clone(), payout_id);
-        let mut payout = self
+        let payout = self
             .payouts
-            .get(&key)
-            .cloned()
+            .get_mut(&key)
             .unwrap_or_else(|| env::panic_str("Payout not found"));
         require!(
             payout.state == PayoutState::Pending,
@@ -871,8 +869,6 @@ impl Contract {
             "Payout cannot be expired yet"
         );
         payout.state = PayoutState::Expired;
-        self.payouts.insert(key, payout);
-
         Event::PayoutStateChanged(vec![PayoutStateChangedData {
             employer,
             payout_id,
@@ -1022,14 +1018,13 @@ impl Contract {
             .unwrap_or_else(|| env::panic_str("Unknown hold reason code"));
 
         let caller = env::predecessor_account_id();
-        let mut hold = self
+        let hold = self
             .holds
-            .get(&hold_id)
-            .cloned()
+            .get_mut(&hold_id)
             .unwrap_or_else(|| env::panic_str("Hold not found"));
         require!(hold.state == HoldState::Active, "Hold is not active");
         require!(
-            caller == hold.employer || self.is_auditor(&hold.employer, &caller),
+            caller == hold.employer || Self::is_auditor_in(&self.auditors, &hold.employer, &caller),
             "Only the employer or an auditor can release a hold"
         );
 
@@ -1038,12 +1033,11 @@ impl Contract {
         hold.released_by = Some(caller.clone());
         hold.released_at = Some(now);
         hold.release_reason = Some(reason);
-        self.holds.insert(hold_id.clone(), hold.clone());
 
         Event::AuditHoldChanged(vec![AuditHoldChangedData {
             hold_id,
-            employer: hold.employer,
-            scope: hold.scope,
+            employer: hold.employer.clone(),
+            scope: hold.scope.clone(),
             state: HoldState::Released,
             by: caller,
         }])
