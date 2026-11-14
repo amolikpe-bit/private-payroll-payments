@@ -7,20 +7,22 @@ The contract records commitment hashes, payout state, audit holds, and auditor r
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontSize":"14px"}}}%%
 sequenceDiagram
+    accTitle: subrosa runtime flow
+    accDescr: Employer registers workers, commits hashed salaries, verifies proofs, then pays out privately and settles payout state.
     autonumber
     participant C as Contract
     participant R as Relayer
     participant S as SDK
     participant N as near-social
     participant O as 1Click session
-    rect rgb(226,238,255)
+    rect rgba(226,238,255,0.20)
     Note over R,C: PHASE 1 — register worker
     S->>R: signedDelegate, register_employee
     R->>R: policy check, one FunctionCall, 100 TGas cap
     R->>C: relay meta tx, deposit 567 B plus metadata
     C-->>S: EmployeeRegistered
     end
-    rect rgb(230,247,235)
+    rect rgba(230,247,235,0.20)
     Note over S,C: PHASE 2 — commit salary batch
     S->>S: Borsh preimage 186 B, sha256 hash
     S->>R: signedDelegate, commit_salary
@@ -29,21 +31,21 @@ sequenceDiagram
     C-->>S: SalaryCommitted
     Note over C: one write burns 2.348758401541 TGas gross
     end
-    rect rgb(255,244,214)
+    rect rgba(255,244,214,0.20)
     Note over S,C: PHASE 3 — recompute and compare the commitment
     S->>S: rebuild Borsh preimage, compare hash
     alt amount changed
         S-->>S: reject, no proof
     end
     end
-    rect rgb(243,232,255)
+    rect rgba(243,232,255,0.20)
     Note over S,C: PHASE 4 — verify commitment on chain
     opt Groth16 verifier enabled
         S->>C: verify_proof
         C-->>S: ProofVerified
     end
     end
-    rect rgb(255,232,232)
+    rect rgba(255,232,232,0.20)
     Note over S,O: PHASE 5 — private payout
     S->>S: schedule_payout, hold gate, destination gate
     S->>O: dry quote, no deposit address
@@ -54,7 +56,7 @@ sequenceDiagram
         O-->>S: SUCCESS or FAILED or REFUNDED
     end
     end
-    rect rgb(224,247,250)
+    rect rgba(224,247,250,0.20)
     Note over S,N: PHASE 6 — settle payout
     alt SUCCESS
         S->>R: mark_settled
