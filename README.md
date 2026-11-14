@@ -233,6 +233,13 @@ Origin companion contracts carry `NOASSERTION` license metadata and are excluded
 
 This repository is production tooling for a port, not a hackathon entry.
 
+## Baseline and disclosure
+
+- Baseline: tag `pre-hackathon` marks the imported tree at `b7bafa5`. The upstream project is `zkpayroll/zk-payroll-sdk`.
+- Submission: tag `hackathon-submission` marks the state at `b981fb3`.
+- Diff: `git diff pre-hackathon..hackathon-submission`. After publishing, https://github.com/<owner>/<repo>/compare/pre-hackathon...hackathon-submission.
+- Libraries, templates and AI-generated code are listed in `ATTRIBUTION.md`.
+
 ## License
 
 MIT. See `LICENSE` (which retains the origin copyright notice) and `ATTRIBUTION.md`.
