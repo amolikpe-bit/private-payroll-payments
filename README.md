@@ -5,7 +5,6 @@ Private payroll on NEAR. Employers register workers, publish commitment hashes, 
 The contract records commitment hashes, payout state, audit holds, and auditor roles. It never holds funds. Settlement runs off chain on the 1Click Confidential Intents API and reports via `mark_settled` or `mark_failed`.
 
 ```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px"}}}%%
 sequenceDiagram
     accTitle: subrosa runtime flow
     accDescr: Employer registers workers, commits hashed salaries, verifies proofs, then pays out privately and settles payout state.
