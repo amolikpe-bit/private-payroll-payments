@@ -1,15 +1,11 @@
 # near-subrosa-relayer
 
 NEP-366 meta-transaction relayer for the `subrosa.testnet` payroll contract.
-It lets an employer with **zero NEAR** register an employee and commit salary
-hashes: the relayer pays gas *and* the inner action's storage deposit, then the
-contract identifies the employer by `predecessor_account_id` (never the
-relayer's `signer_account_id`). Employees need no NEAR account at all for the
-confidential payout path.
+An employer with **zero NEAR** can register workers and commit salary hashes.
+The relayer pays gas and storage deposits. The contract reads `predecessor_account_id`, never `signer_account_id`.
+Employees need no NEAR account for confidential payouts.
 
-There is no mainnet path. The contract id is fixed to `subrosa.testnet`, the
-network is `testnet`, and any RPC URL whose hostname names mainnet is rejected.
-
+No mainnet path exists. The contract id is `subrosa.testnet` on `testnet`. Any RPC URL naming mainnet is rejected.
 ## What it accepts
 
 One base64 Borsh [`SignedDelegate`](https://github.com/near/NEPs/blob/master/neps/nep-0366.md)
@@ -33,8 +29,7 @@ const { signedDelegate } = await account.createSignedMetaTransaction({
 const body = { signedDelegate: Buffer.from(signedDelegate.encode()).toString("base64") };
 ```
 
-A client with no NEAR ever needs: the delegate sender's account must exist and
-hold the regular access key that signed it.
+A zero-NEAR client still needs an existing sender account with a valid regular access key.
 
 ## Policy (enforced locally, before RPC)
 
@@ -52,30 +47,22 @@ hold the regular access key that signed it.
 
 ### Why deposits are capped here
 
-NEP-366 does not check the inner function-call key's **allowance**: the relayer
-pays every cost. An allowance therefore cannot bound what a compromised or
-malicious client spends. The table above is the spending bound, and the deposit
-must match the contract's exact storage requirement because the contract retains
-any surplus.
+NEP-366 ignores the inner function-call key's allowance, so the relayer pays every cost.
+An allowance cannot cap a compromised client.
+The table above bounds spending, and deposits must match exact storage costs because surpluses stay in the contract.
 
 ## Outer transaction signing (NEP-611)
 
 The relayer signs the wrapping transaction with a **full-access gas key**:
 
-- prepaid gas balance isolates gas spend from the account's liquid balance;
-- up to 1,024 nonce lanes eliminate nonce collisions between concurrent relays;
-- near-api-js's nonce manager detects the gas-key permission and reserves a lane
-  automatically.
+- Prepaid gas balance isolates gas spend from liquid balance.
+- Up to 1,024 nonce lanes prevent collisions across concurrent relays.
+- The near-api-js nonce manager reserves gas-key lanes automatically.
 
-Inner attached deposits (the storage deposits capped below) are paid from the
-relayer account's **liquid** balance, not the gas key. Fund both: gas on the gas
-key, deposit headroom on the account.
+Account liquid balance pays inner storage deposits, not the gas key. Fund both gas key and account.
 
-A *function-call* gas key is rejected at startup: `relayMetaTransaction` targets
-`delegateAction.senderId` (an arbitrary user account), which a contract-scoped
-key cannot sign. A regular full-access key is also rejected — it would work
-technically but silently move gas spend onto the account balance.
-
+Startup rejects *function-call* gas keys: `relayMetaTransaction` targets arbitrary `delegateAction.senderId` accounts.
+Startup also rejects regular full-access keys because they silently charge gas to liquid balance.
 ## Retiring a gas key
 
 Deleting a NEP-611 gas key **burns its remaining prepaid balance**. The
@@ -86,11 +73,9 @@ transaction, and only then deletes the key:
 subrosa-relayer retire-gas-key
 ```
 
-A 0.01 NEAR reserve stays on the key to pay for the withdrawal and deletion
-transactions (`RELAYER_RETIRE_RESERVE_YOCTO`). Any reserve left after those
-transactions is burned by deletion; the protocol rejects deleting a gas key that
-would burn more than 1 NEAR, so the reserve is capped at 1 NEAR. If withdrawal
-fails, the key is left intact; deletion is never attempted.
+`RELAYER_RETIRE_RESERVE_YOCTO` keeps 0.01 NEAR on the key for withdrawal and deletion fees.
+Deletion burns any remaining reserve. Protocol rejects deletions burning over 1 NEAR, so reserve caps at 1 NEAR.
+If withdrawal fails, the key stays intact and deletion never runs.
 
 ## Run
 
@@ -119,9 +104,9 @@ Environment:
 
 Routes:
 
-- `GET /healthz` — liveness, network and contract
-- `GET /v1/policy` — public method caps
-- `POST /v1/relay` — relay one signed delegate (bearer token when configured)
+- `GET /healthz`: liveness, network, and contract.
+- `GET /v1/policy`: public method caps.
+- `POST /v1/relay`: relay one signed delegate (bearer token if set).
 
 ## Test
 
@@ -130,7 +115,5 @@ npm run test:relayer
 # or: cd relayer && npm test
 ```
 
-The suite covers delegate caps, receiver/method/deposit/gas/expiry rejection,
-signature verification, inner gas-key rejection, the FCK-allowance-bypass bound,
-withdraw-before-delete ordering, and the HTTP error surface. No network access is
-required.
+Tests cover delegate caps, policy rejections, signature verification, and inner gas-key rejection.
+They also verify FCK-allowance bounds, withdraw-before-delete order, and HTTP errors offline.

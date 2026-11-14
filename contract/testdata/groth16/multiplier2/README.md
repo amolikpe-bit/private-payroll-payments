@@ -1,15 +1,10 @@
 # Groth16 fixture: circom `multiplier2`
 
-These are real `snarkjs` artifacts for the two-input multiplier circuit
-(`c = a * b`). The proof proves `a = 3`, `b = 11` (a private witness) with the
-public output `c = 33`; `public.json` is `["33"]`. The files were checked in
-from the public fixture set at
-<https://github.com/k-gunjan/circom-snarkjs-webAssembly-groth16-zk-SNARK-protocol>
-and the proof verifies with `snarkjs@0.7.6` (`groth16 verify` prints `OK!`).
+These `snarkjs` artifacts cover the two-input multiplier circuit (`c = a * b`).
+The proof shows private witness `a = 3`, `b = 11` for public output `c = 33`. `public.json` holds `["33"]`.
+Files come from <https://github.com/k-gunjan/circom-snarkjs-webAssembly-groth16-zk-SNARK-protocol>. The proof passes `snarkjs@0.7.6` (`groth16 verify` prints `OK!`).
 
-The unit tests build the raw NEAR wire encoding from these JSON files and run
-the on-chain verifier (`env::alt_bn128_*` host functions) against them, so the
-fixture is an executable known-good proof rather than documentation only.
+Unit tests build NEAR wire bytes from these JSON files and call `env::alt_bn128_*`. The fixture is an executable proof, not docs only.
 
 ## Files
 
@@ -76,10 +71,9 @@ ic_count: u32 little-endian                            4 B
 IC[0] .. IC[ic_count-1] (G1, 64 B each)
 ```
 
-The verifier negates A as `(x, p - y)` (with `(0, 0)` staying infinity), builds
-`vk_x = IC[0] + sum(pub[i] * IC[i+1])` through `alt_bn128_g1_multiexp` and
-`alt_bn128_g1_sum`, and calls `alt_bn128_pairing_check` on
-`[(-A, B), (alpha, beta), (vk_x, gamma), (C, delta)]`.
+The verifier negates A as `(x, p - y)`, keeping `(0, 0)` at infinity.
+It computes `vk_x = IC[0] + sum(pub[i] * IC[i+1])` via `alt_bn128_g1_multiexp` and `alt_bn128_g1_sum`.
+It then calls `alt_bn128_pairing_check` on `[(-A, B), (alpha, beta), (vk_x, gamma), (C, delta)]`.
 
 This fixture is the `multiplier2` circuit, so `ic_count = 2` and the only
 public input is `"33"`.

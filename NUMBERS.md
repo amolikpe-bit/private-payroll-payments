@@ -25,15 +25,11 @@ security-only patch. The claim therefore budgets the full burnt amount.
 | Storage cost | `0.00374` | NEAR (`1 NEAR = 1e24 yoctoNEAR`) |
 | Gas rebate | none | gross claim |
 
-The 374 B is the measured delta and the model used by
-`COMMITMENT_RECORD_BYTES` in `contract/src/lib.rs`. It supersedes the earlier
-182 B estimate in `p0-privacy.md` Step 14. A 50-item `batch_commit_salaries`
-call therefore requires `50 × 374 B = 18,700 B = 0.187 NEAR` of storage
-deposit; that batch deposit is arithmetic, not a second measurement.
+`COMMITMENT_RECORD_BYTES` in `contract/src/lib.rs` models this 374 B delta. It supersedes the 182 B estimate in `p0-privacy.md` Step 14.
+A 50-item `batch_commit_salaries` call needs `50 × 374 B = 18,700 B = 0.187 NEAR` of storage deposit. That batch deposit is arithmetic, not a second measurement.
 
-Gas is reported in gas units/TGas, not in NEAR: the gas price is a runtime
-parameter and would make a NEAR-denominated "gas cost" non-reproducible. The
-storage price is the sandbox constant `1e19` yoctoNEAR/byte.
+Gas uses gas units or TGas, never NEAR. Gas price is a runtime parameter, so NEAR-denominated gas cost is not reproducible.
+Storage price uses the sandbox constant `1e19` yoctoNEAR/byte.
 
 ## Reproduction
 
@@ -69,11 +65,9 @@ For a stable machine-readable report (for rerun diffing):
 npm run numbers -- --capture target/numbers/capture.log --json
 ```
 
-The script exits non-zero when `--capture` is omitted, the file is missing or
-empty, the marker line is malformed or conflicting, the JSON shape/price is
-invalid, the storage delta is not 374 B, or the gas is not the pinned value.
-The 50-entry batch/redaction checks live in
-`packages/core/tests/behavior.test.ts` (consolidated behavior suite) and run with `npm test`.
+The script exits non-zero if `--capture` is missing or empty, or if marker lines conflict.
+It also exits non-zero when JSON fields, price, storage delta (374 B), or gas differ from the pinned values.
+The 50-entry batch and redaction checks run in `packages/core/tests/behavior.test.ts` under `npm test`.
 
 ### Rerun proof
 
@@ -93,10 +87,8 @@ npm run numbers -- --capture target/numbers/capture.log --json \
 diff -u target/numbers/report-first.json target/numbers/report-second.json
 ```
 
-A clean rerun produces an empty diff: the text capture carries no timestamp, tx
-hash, or other volatile metadata. If the second run differs, the claim is not
-reproducible on that box and `NUMBERS.md` must not be updated to the new value
-until the difference is explained.
+A clean rerun gives an empty diff because the capture carries no timestamps or tx hashes.
+If the second run differs, the claim is not reproducible there. Do not update `NUMBERS.md` until the difference is explained.
 
 ## Capture prerequisite and schema
 
@@ -120,9 +112,7 @@ W4_CAPTURE commitment_gas_burnt=2353357561394 commitment_storage_delta=374
   outcome, i.e. gross gas for the call.
 - `commitment_storage_delta` is
   `view_account(contract).storage_usage` after minus before, in bytes.
-- The test emits the line with `eprintln!`; redirect stderr into the log
-  (`2>&1 | tee ...`) because `--nocapture` alone shows it on the terminal but
-  does not save it.
+- The test prints via `eprintln!`. Redirect stderr (`2>&1 | tee ...`) because `--nocapture` alone omits stderr from saved files.
 - Duplicate marker lines with identical values are accepted; conflicting lines
   are rejected so two runs cannot be mixed silently.
 
@@ -157,42 +147,27 @@ errors. The assertion is local and needs no chain or keys; it lives in
    commitment hashes, positive u128 amounts, 32-byte hex salts).
 2. Asserts the contract cap: 50 entries fit one chunk; 51 entries split
    `50 + 1`; the SDK `MAX_BATCH_SIZE` is 50.
-3. Creates a resume token for the 50 entries at batch size 10 (5 batches), then
-   resolves a checkpoint at batch 2 / 20 items and asserts it resumes exactly
-   there.
-4. Scans the raw payload: amounts and salts produce warnings; salts and
-   `witnessSecret`/`privateKey` produce errors, so the raw batch is unsafe.
-5. Redacts with the default replacement mode: no employee id, amount, salt, or
-   credential survives; the public commitment hashes and asset/memo fields
-   remain; the redacted entry has the expected snapshot shape.
-6. Redacts with `mode: "remove"`: no sensitive key or value remains and
-   `validateSafeCredentialUsage` reports zero findings.
-7. Redacts a synthetic submit error whose message, stack, and `context` carry a
-   50-entry batch plus a NEAR secret key: the snapshot contains
-   `[redacted]`, the source error is not mutated, and no private value leaks.
-8. Asserts the resume token itself contains no private value.
+3. Creates a 50-entry resume token (batch size 10, 5 batches). Resolves checkpoint at batch 2 (20 items) and checks resume index.
+4. Scans raw payload: amounts and salts warn; salts, `witnessSecret`, and `privateKey` error.
+5. Redacts with default replacement: employee id, amount, salt, and credentials vanish; public commitment hashes, asset, and memo remain.
+6. Redacts with `mode: "remove"`: sensitive keys and values vanish, and `validateSafeCredentialUsage` finds zero issues.
+7. Redacts a synthetic error holding a 50-entry batch and NEAR secret key in message, stack, and `context`. Snapshot shows `[redacted]`, original stays intact, and zero secrets leak.
+8. Asserts the resume token carries no private value.
 
 The assertion exits non-zero on any leak; a successful run prints the finding
 counts and `0` leak counts.
 
 ## Origin comparison
 
-The origin ships `tests/benchmarks/performance-baseline.json` (at the port
-baseline, `packages/core/tests/benchmarks/performance-baseline.json`). Its rows
-measure Node-side microbenchmarks in milliseconds (witness encoding, cache
-hit/miss, draft creation, aggregation, idempotency tracking); it contains no
-on-chain gas or contract-storage rows. **No row is comparable** to this pin, so
-this document makes no speedup claim against the origin. The comparison stops
-at the units: milliseconds of local JS work versus gas/burned bytes on a
-sandbox chain.
+Origin ships `tests/benchmarks/performance-baseline.json` (`packages/core/tests/benchmarks/performance-baseline.json` at baseline).
+Its rows time Node microbenchmarks in milliseconds (witness encoding, cache hit/miss, drafts, aggregation, idempotency).
+It holds no on-chain gas or storage rows, so **no row is comparable** here.
+This doc makes no speedup claim against origin: local JS milliseconds cannot compare to sandbox gas and storage bytes.
 
 ## Limits
 
-- Sandbox only (`nearcore 2.14.0`, near-workspaces 0.24.0); not a testnet or
-  mainnet fee quote. Gas can change with the wasm build, protocol version, or
-  the number of bytes written; the pinned value is tied to the pinned build.
-- One `commit_salary` call for one employee and cycle on a freshly deployed
-  contract. It is not a batch, payout, hold, or Groth16 verification number.
+- Sandbox only (`nearcore 2.14.0`, near-workspaces 0.24.0); not a testnet or mainnet quote. Gas varies with wasm build, protocol version, and written bytes.
+- One `commit_salary` call for one employee and cycle on a fresh contract. Not a batch, payout, hold, or Groth16 number.
 - Gas includes the transaction outcome and all receipt outcomes (gross call
   cost), with no rebate. Storage cost assumes the sandbox price `1e19`
   yoctoNEAR/byte.
