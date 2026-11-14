@@ -256,4 +256,4 @@ MIT. See `LICENSE` (which retains the origin copyright notice) and `ATTRIBUTION.
 
 ## Hackathon
 
-Track: `privacy`. Development ends 2026-11-14T23:59:00Z (UTC).
+Tracks: `privacy`, `realworld`. Development ends 2026-11-14T23:59:00Z (UTC).
