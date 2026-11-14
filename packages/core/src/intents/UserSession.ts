@@ -13,6 +13,7 @@
 
 import { randomFillSync } from "node:crypto";
 
+import { hexToBytes } from "../crypto/hashUtils.js";
 import { PrivateStore } from "../store/PrivateStore.js";
 import {
   OneClickApiError,
@@ -70,12 +71,7 @@ export function buildVersionedNonce(options: VersionedNonceOptions): string {
   if (!/^[0-9a-fA-F]{8}$/.test(saltHex)) {
     throw new UserSessionError("INVALID_NONCE", "Versioned nonce salt must be four bytes of hex.");
   }
-  const salt = Uint8Array.from([
-    Number.parseInt(saltHex.slice(0, 2), 16),
-    Number.parseInt(saltHex.slice(2, 4), 16),
-    Number.parseInt(saltHex.slice(4, 6), 16),
-    Number.parseInt(saltHex.slice(6, 8), 16),
-  ]);
+  const salt = hexToBytes(saltHex);
 
   const nonceBytes =
     options.randomBytes === undefined
@@ -93,7 +89,7 @@ export function buildVersionedNonce(options: VersionedNonceOptions): string {
   view.setBigUint64(9, BigInt(deadline.getTime()) * 1_000_000n, true);
   view.setBigInt64(17, BigInt(startTime.getTime()) * 1_000_000n, true);
   out.set(nonceBytes, 25);
-  return Buffer.from(out).toString("base64");
+  return out.toBase64();
 }
 
 /** Canonical empty-intent message signed for User-Session authentication. */

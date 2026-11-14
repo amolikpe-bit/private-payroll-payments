@@ -67,7 +67,18 @@ export function findBlockingHold(
   query: HoldQuery,
   holds: readonly ParsedHoldStatus[]
 ): ParsedHoldStatus | undefined {
-  return activeHoldsFor(query, holds)[0];
+  let best: ParsedHoldStatus | undefined;
+  let bestPriority = Number.POSITIVE_INFINITY;
+  for (const hold of holds) {
+    if (!isHoldBlocking(hold) || !appliesTo(hold, query)) continue;
+    const priority = priorityOf(hold);
+    if (priority < bestPriority) {
+      best = hold;
+      bestPriority = priority;
+      if (priority === -1) break;
+    }
+  }
+  return best;
 }
 
 /** Checks a payroll action against a set of candidate holds. */

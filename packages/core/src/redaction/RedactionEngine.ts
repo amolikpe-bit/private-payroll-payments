@@ -55,6 +55,9 @@ const DEFAULT_SENSITIVE_FIELDS: readonly string[] = Object.freeze([
 const NEAR_SECRET_KEY_PATTERN = /\b(?:ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]{40,100}\b/g;
 
 const DEFAULT_FIELD_SET: ReadonlySet<string> = new Set(DEFAULT_SENSITIVE_FIELDS);
+const DEFAULT_SENSITIVE_LOWER: ReadonlyArray<readonly [string, string]> = DEFAULT_SENSITIVE_FIELDS.map(
+  (field) => [field, field.toLowerCase()] as const,
+);
 const FIELD_PATTERNS = new Map<string, RegExp>(
   DEFAULT_SENSITIVE_FIELDS.map((field) => [
     field,
@@ -74,18 +77,6 @@ function fieldPattern(field: string): RegExp {
     FIELD_PATTERNS.set(field, pattern);
   }
   return pattern;
-}
-
-function isDefaultFieldSet(fields: ReadonlySet<string>): boolean {
-  if (fields.size !== DEFAULT_FIELD_SET.size) {
-    return false;
-  }
-  for (const field of DEFAULT_SENSITIVE_FIELDS) {
-    if (!fields.has(field)) {
-      return false;
-    }
-  }
-  return true;
 }
 
 function buildFieldSet(options: RedactionOptions = {}): ReadonlySet<string> {
@@ -158,6 +149,7 @@ export function redactDeep(
   fieldsRedacted: string[] = []
 ): RedactionResult<unknown> {
   const sensitiveFields = buildFieldSet(options);
+  const seenFields = new Set(fieldsRedacted);
 
   function walk(current: unknown): unknown {
     if (Array.isArray(current)) {
@@ -171,7 +163,10 @@ export function redactDeep(
           if (replacement !== undefined) {
             out[key] = replacement;
           }
-          if (!fieldsRedacted.includes(key)) fieldsRedacted.push(key);
+          if (!seenFields.has(key)) {
+            seenFields.add(key);
+            fieldsRedacted.push(key);
+          }
         } else {
           out[key] = walk(nested);
         }
@@ -194,7 +189,7 @@ function redactMessage(
   replacement: string
 ): string {
   const cacheable =
-    replacement === DEFAULT_REDACTION_REPLACEMENT && isDefaultFieldSet(sensitiveFields);
+    replacement === DEFAULT_REDACTION_REPLACEMENT && sensitiveFields === DEFAULT_FIELD_SET;
   if (cacheable) {
     const cached = MESSAGE_CACHE.get(message);
     if (cached !== undefined) {
@@ -204,11 +199,18 @@ function redactMessage(
 
   const lower = message.toLowerCase();
   let sanitized = message;
-  for (const field of sensitiveFields) {
-    if (!lower.includes(field.toLowerCase())) {
-      continue;
+  if (sensitiveFields === DEFAULT_FIELD_SET) {
+    for (const [field, fieldLower] of DEFAULT_SENSITIVE_LOWER) {
+      if (lower.includes(fieldLower)) {
+        sanitized = sanitized.replace(fieldPattern(field), `$1${replacement}`);
+      }
     }
-    sanitized = sanitized.replace(fieldPattern(field), `$1${replacement}`);
+  } else {
+    for (const field of sensitiveFields) {
+      if (lower.includes(field.toLowerCase())) {
+        sanitized = sanitized.replace(fieldPattern(field), `$1${replacement}`);
+      }
+    }
   }
   // Credentials often appear unlabelled in RPC/client error text.
   if (lower.includes("ed25519:") || lower.includes("secp256k1:")) {

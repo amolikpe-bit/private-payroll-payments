@@ -63,10 +63,14 @@ export function chunkPayoutBatches(
     return { chunks: [], errors };
   }
 
-  const chunks: BatchPaymentEntry[][] = [];
+  return { chunks: sliceChunks(entries, maxBatchSize), errors: [] };
+}
+
+/** Split already-validated entries into fixed-size chunks. */
+export function sliceChunks<T>(entries: readonly T[], maxBatchSize: number): T[][] {
+  const chunks: T[][] = [];
   for (let index = 0; index < entries.length; index += maxBatchSize) {
     chunks.push(entries.slice(index, index + maxBatchSize));
   }
-
-  return { chunks, errors: [] };
+  return chunks;
 }

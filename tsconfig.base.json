@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "lib": ["ES2024", "DOM"]
+    "lib": ["ES2024", "ESNext.TypedArrays", "DOM"]
   }
 }

@@ -19,10 +19,13 @@
  * path. Amounts, salts, and deposit addresses never appear in flow errors.
  */
 
-import { SubrosaError, ValidationError } from "../core/errors.js";
+import { SubrosaError } from "../core/errors.js";
 import { IdempotencyRegistry } from "../core/idempotency.js";
-import { commitmentHash as computeCommitmentHash } from "../crypto/hashUtils.js";
-import { MAX_SALT_BYTES } from "../batch/BatchPayloadBuilder.js";
+import {
+  assertHexSalt,
+  assertPositiveU128,
+  commitmentHash as computeCommitmentHash,
+} from "../crypto/hashUtils.js";
 import type { ConfidentialPayout } from "../intents/ConfidentialPayout.js";
 import {
   assertIntentHash,
@@ -35,8 +38,6 @@ import { redactError } from "../redaction/RedactionEngine.js";
 import type { PrivateReceiptSummary, PrivateStore } from "../store/PrivateStore.js";
 import type { PayoutEntry, PendingPayout } from "../types.js";
 
-const U128_MAX = (1n << 128n) - 1n;
-const SALT_PATTERN = /^(?:[0-9a-fA-F]{2})+$/;
 const MAX_MEMO_BYTES = 256;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 256;
 
@@ -190,36 +191,9 @@ function normalizeStatus(value: string): string {
   return value.trim().toUpperCase();
 }
 
-function assertAmount(value: unknown): bigint {
-  if (typeof value !== "bigint" || value <= 0n || value > U128_MAX) {
-    throw new ValidationError(
-      "amount must be a positive bigint that fits in u128.",
-      "amount",
-      "INVALID_AMOUNT",
-    );
-  }
-  return value;
-}
-
-function assertSalt(value: unknown): string {
-  if (
-    typeof value !== "string" ||
-    value.length === 0 ||
-    value.length > MAX_SALT_BYTES * 2 ||
-    !SALT_PATTERN.test(value)
-  ) {
-    throw new ValidationError(
-      "salt must be an even-length hex string of 1-64 bytes.",
-      "salt",
-      "INVALID_SALT",
-    );
-  }
-  return value;
-}
-
 function assertMemo(value: unknown): string {
   if (value === undefined) return "";
-  if (typeof value !== "string" || new TextEncoder().encode(value).length > MAX_MEMO_BYTES) {
+  if (typeof value !== "string" || Buffer.byteLength(value, "utf8") > MAX_MEMO_BYTES) {
     throw new PrivatePayoutFlowError(
       "INVALID_REQUEST",
       "memo must be a string of at most 256 UTF-8 bytes.",
@@ -292,8 +266,8 @@ export class PrivatePayoutFlow {
     const token = requireAccountId(request.token, "token");
     const asset = requireAccountId(request.asset, "asset");
     const cycleId = assertSafeU64(request.cycleId, "cycleId");
-    const amount = assertAmount(request.amount);
-    const salt = assertSalt(request.salt);
+    const amount = assertPositiveU128(request.amount);
+    const salt = assertHexSalt(request.salt);
     const memo = assertMemo(request.memo);
     const executeAt = assertExecuteAt(request.executeAt);
     const expectedHash = normalizeCommitmentHash(request.commitmentHash, "commitmentHash");

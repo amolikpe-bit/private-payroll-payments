@@ -484,9 +484,11 @@ function numberField(value: unknown, field: string): number {
   return value;
 }
 
+const UTF8_DECODER = new TextDecoder();
+
 function callArgs(value: unknown): Record<string, unknown> {
   if (value instanceof Uint8Array) {
-    const parsed: unknown = JSON.parse(new TextDecoder().decode(value));
+    const parsed: unknown = JSON.parse(UTF8_DECODER.decode(value));
     return isJsonObject(parsed) ? parsed : {};
   }
   return isJsonObject(value) ? value : {};

@@ -21,7 +21,7 @@ import {
   type PayrollReceipt,
   type ReceiptSettlementStatus,
 } from "../settlement/receipt.js";
-import { sha256Hex } from "../crypto/hashUtils.js";
+import { isLowerHex64, sha256Hex } from "../crypto/hashUtils.js";
 import type { HoldReason, HoldScope, HoldState } from "../types.js";
 import nearSocial from "near-social-js";
 import type { SocialOptions } from "near-social-js";
@@ -42,7 +42,6 @@ export const FASTDATA_API_BASE_URL = "https://api2.near.social";
 /** Default audit owner namespace. */
 export const SOCIAL_AUDIT_ACCOUNT_ID = "subrosa.near";
 
-const HEX64 = /^[0-9a-f]{64}$/;
 const HOLD_SCOPES: readonly HoldScope[] = ["Employer", "Period", "Batch", "Employee"];
 const HOLD_STATES: readonly HoldState[] = ["Active", "Released"];
 const HOLD_REASONS: readonly HoldReason[] = [
@@ -173,10 +172,10 @@ export function buildSettlementAuditEntry(receipt: PayrollReceipt): SettlementAu
   if (!isValidIntentHash(intentHash)) {
     throw new AuditWriteError("INVALID_ENTRY", "Receipt intent hash is invalid.");
   }
-  if (!HEX64.test(receipt.metadataDigest)) {
+  if (!isLowerHex64(receipt.metadataDigest)) {
     throw new AuditWriteError("INVALID_ENTRY", "Receipt metadata digest is invalid.");
   }
-  if (receipt.complianceHash !== undefined && !HEX64.test(receipt.complianceHash)) {
+  if (receipt.complianceHash !== undefined && !isLowerHex64(receipt.complianceHash)) {
     throw new AuditWriteError("INVALID_ENTRY", "Receipt compliance hash is invalid.");
   }
   return {
@@ -500,7 +499,7 @@ function assertSettlementEntry(entry: SettlementAuditEntry): void {
   if (entry.version !== 1 || entry.kind !== "settlement") {
     throw new AuditWriteError("INVALID_ENTRY", "Settlement audit entry version/kind is invalid.");
   }
-  if (typeof entry.commitmentHash !== "string" || !HEX64.test(entry.commitmentHash)) {
+  if (!isLowerHex64(entry.commitmentHash)) {
     throw new AuditWriteError("INVALID_ENTRY", "Settlement commitment hash is invalid.");
   }
   if (!isValidIntentHash(entry.intentHash)) {
@@ -509,7 +508,7 @@ function assertSettlementEntry(entry: SettlementAuditEntry): void {
   if (entry.status !== undefined && !SETTLEMENT_STATUSES.includes(entry.status)) {
     throw new AuditWriteError("INVALID_ENTRY", "Settlement status is invalid.");
   }
-  if (entry.complianceHash !== undefined && !HEX64.test(entry.complianceHash)) {
+  if (entry.complianceHash !== undefined && !isLowerHex64(entry.complianceHash)) {
     throw new AuditWriteError("INVALID_ENTRY", "Settlement compliance hash is invalid.");
   }
   assertIsoTimestamp(entry.at);
@@ -529,10 +528,10 @@ function assertHoldEntry(entry: HoldAuditEntry): void {
   if (entry.version !== 1 || entry.kind !== "hold") {
     throw new AuditWriteError("INVALID_ENTRY", "Hold audit entry version/kind is invalid.");
   }
-  if (typeof entry.holdIdHash !== "string" || !HEX64.test(entry.holdIdHash)) {
+  if (!isLowerHex64(entry.holdIdHash)) {
     throw new AuditWriteError("INVALID_ENTRY", "Hold id hash is invalid.");
   }
-  if (typeof entry.employerHash !== "string" || !HEX64.test(entry.employerHash)) {
+  if (!isLowerHex64(entry.employerHash)) {
     throw new AuditWriteError("INVALID_ENTRY", "Employer hash is invalid.");
   }
   if (!HOLD_SCOPES.includes(entry.scope)) {

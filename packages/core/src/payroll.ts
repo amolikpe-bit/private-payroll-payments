@@ -9,13 +9,13 @@
  */
 
 import { chunkPayoutBatches } from "./batch/chunking.js";
-import type { BatchPaymentEntry } from "./batch/BatchPayloadBuilder.js";
-import { BatchValidationFailedError, MAX_SALT_BYTES } from "./batch/BatchPayloadBuilder.js";
+import { BatchValidationFailedError, type BatchPaymentEntry } from "./batch/BatchPayloadBuilder.js";
 import { SubrosaError, ValidationError } from "./core/errors.js";
 import {
   IdempotencyRegistry,
   createPaymentIdempotencyKey,
 } from "./core/idempotency.js";
+import { assertHexSalt, assertPositiveU128 } from "./crypto/hashUtils.js";
 import type { CommitmentClient } from "./near/CommitmentClient.js";
 import type { HoldClient } from "./near/HoldClient.js";
 import type { PayoutClient } from "./near/PayoutClient.js";
@@ -44,8 +44,6 @@ import {
 import type { PrivateStore } from "./store/PrivateStore.js";
 import type { HoldEntry, PendingPayout } from "./types.js";
 
-const U128_MAX = (1n << 128n) - 1n;
-const SALT_PATTERN = /^(?:[0-9a-fA-F]{2})+$/;
 /** Contract batch cap shared by commitment and payout chunking. */
 const PAYROLL_BATCH_SIZE = 50;
 
@@ -130,32 +128,6 @@ export class PayrollError extends SubrosaError {
   }
 }
 
-function assertU128Amount(value: unknown): bigint {
-  if (typeof value !== "bigint" || value <= 0n || value > U128_MAX) {
-    throw new ValidationError(
-      "amount must be a positive bigint that fits in u128.",
-      "amount",
-      "INVALID_AMOUNT",
-    );
-  }
-  return value;
-}
-
-function assertSalt(value: unknown): string {
-  if (
-    typeof value !== "string" ||
-    value.length === 0 ||
-    value.length > MAX_SALT_BYTES * 2 ||
-    !SALT_PATTERN.test(value)
-  ) {
-    throw new ValidationError(
-      "salt must be an even-length hex string of 1-64 bytes.",
-      "salt",
-      "INVALID_SALT",
-    );
-  }
-  return value;
-}
 
 /** Convert an SDK error to an Error so redaction can inspect its message. */
 function asError(error: unknown): Error {
@@ -311,8 +283,8 @@ export class PayrollService {
     const asset = requireAssetId(request.asset, "asset");
     const payoutId = assertSafeU64(request.payoutId, "payoutId");
     const cycleId = assertSafeU64(request.cycleId, "cycleId");
-    const amount = assertU128Amount(request.amount);
-    const salt = assertSalt(request.salt);
+    const amount = assertPositiveU128(request.amount);
+    const salt = assertHexSalt(request.salt);
 
     const registration = await this.deps.registry.getEmployee(employer, employee);
     if (registration === null || !registration.active) {
@@ -461,23 +433,48 @@ export class PayrollService {
     if (!Array.isArray(holdIds)) {
       throw new ValidationError("holdIds must be an array when provided.", "holdIds");
     }
+    if (holdIds.length === 0) return;
     for (const holdId of holdIds) {
       if (typeof holdId !== "string" || holdId.trim().length === 0) {
         throw new ValidationError("holdIds must contain non-empty strings.", "holdIds");
       }
+    }
 
-      let hold: HoldEntry | null = null;
+    const outcomes: Array<{ hold: HoldEntry | null; error?: unknown }> = new Array(holdIds.length);
+    if (holdIds.length === 1) {
       try {
-        hold = await this.deps.holds.getAuditHold(holdId);
+        outcomes[0] = { hold: await this.deps.holds.getAuditHold(holdIds[0]) };
       } catch (error) {
+        outcomes[0] = { hold: null, error };
+      }
+    } else {
+      const concurrency = Math.min(4, holdIds.length);
+      let next = 0;
+      const worker = async (): Promise<void> => {
+        while (next < holdIds.length) {
+          const idx = next++;
+          try {
+            outcomes[idx] = { hold: await this.deps.holds.getAuditHold(holdIds[idx]) };
+          } catch (error) {
+            outcomes[idx] = { hold: null, error };
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: concurrency }, () => worker()));
+    }
+
+    for (let i = 0; i < holdIds.length; i++) {
+      const holdId = holdIds[i];
+      const outcome = outcomes[i];
+      if (outcome.error !== undefined) {
         throw new PayrollError(
           "Audit hold status could not be read; failing closed and not submitting the payout.",
           "HOLD_STATUS_UNAVAILABLE",
           { holdId },
-          error,
+          outcome.error,
         );
       }
-
+      const hold = outcome.hold;
       if (hold === null) {
         throw new PayrollError(
           "Audit hold status is unknown; failing closed and not submitting the payout.",
@@ -485,10 +482,7 @@ export class PayrollService {
           { holdId },
         );
       }
-
-      if (hold.state === "Released") continue;
-      if (hold.employer !== input.employer) continue;
-
+      if (hold.state === "Released" || hold.employer !== input.employer) continue;
       const blocks =
         hold.scope === "Employer" ||
         (hold.scope === "Period" && hold.scope_id === input.periodId) ||
@@ -496,7 +490,6 @@ export class PayrollService {
           input.batchId !== undefined &&
           hold.scope_id === input.batchId) ||
         (hold.scope === "Employee" && hold.scope_id === input.employee);
-
       if (blocks) {
         throw new PayrollError(
           "An active audit hold blocks this payout.",

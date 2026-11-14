@@ -16,7 +16,7 @@
  */
 
 import { hash as cryptoHash, timingSafeEqual } from "node:crypto";
-
+import { ValidationError } from "../core/errors.js";
 /** Domain separator for per-cycle salary commitments. */
 export const COMMITMENT_DOMAIN = "subrosa/commit/v1";
 /** Domain separator for registry (salary) commitments; `cycle_id` is zero. */
@@ -26,12 +26,12 @@ const ENC = new TextEncoder();
 const COMMIT_BYTES = ENC.encode(COMMITMENT_DOMAIN);
 const REG_BYTES = ENC.encode(REGISTRATION_DOMAIN);
 const MAX_STR = 1024;
-const MAX_SALT = 64;
+export const MAX_SALT = 64;
 const U64_MAX = (1n << 64n) - 1n;
-const U128_MAX = (1n << 128n) - 1n;
+export const U128_MAX = (1n << 128n) - 1n;
 const HEX64 = /^[0-9a-fA-F]{64}$/;
-const HEX_BYTES = /^(?:[0-9a-fA-F]{2})+$/;
-
+const LOWER_HEX64 = /^[0-9a-f]{64}$/;
+export const HEX_BYTES = /^(?:[0-9a-fA-F]{2})+$/;
 /** Stable failure codes for malformed commitment inputs. */
 export type CommitmentEncodingErrorCode =
   | "INVALID_STRING"
@@ -80,6 +80,10 @@ export function isHex64(value: unknown): value is string {
   return typeof value === "string" && HEX64.test(value);
 }
 
+/** True when `value` is exactly 64 lowercase hexadecimal characters. */
+export function isLowerHex64(value: unknown): value is string {
+  return typeof value === "string" && LOWER_HEX64.test(value);
+}
 /**
  * Decode a hexadecimal byte string.
  *
@@ -93,11 +97,8 @@ export function hexToBytes(hex: string): Uint8Array {
       "Expected a non-empty, even-length hexadecimal string without a prefix.",
     );
   }
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let index = 0; index < bytes.length; index += 1) {
-    bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
-  }
-  return bytes;
+  const buf = Buffer.from(hex, "hex");
+  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
 }
 
 /** Encode raw bytes as lowercase hexadecimal. */
@@ -105,7 +106,7 @@ export function bytesToHex(bytes: Uint8Array): string {
   if (!(bytes instanceof Uint8Array)) {
     throw new CommitmentEncodingError("INVALID_HEX", "Expected a Uint8Array.");
   }
-  return Buffer.from(bytes).toString("hex");
+  return bytes.toHex();
 }
 
 /** SHA-256 of raw bytes or a UTF-8 string, as 64-character lowercase hex. */
@@ -311,4 +312,33 @@ function normalizeHex64(value: string, code: CommitmentEncodingErrorCode): strin
     throw new CommitmentEncodingError(code, "Expected a 64-character hexadecimal digest.");
   }
   return value.toLowerCase();
+}
+
+/** Validate a positive `u128` amount bigint. */
+export function assertPositiveU128(value: unknown): bigint {
+  if (typeof value !== "bigint" || value <= 0n || value > U128_MAX) {
+    throw new ValidationError(
+      "amount must be a positive bigint that fits in u128.",
+      "amount",
+      "INVALID_AMOUNT",
+    );
+  }
+  return value;
+}
+
+/** Validate an even-length hex salt of `1..=MAX_SALT` bytes. */
+export function assertHexSalt(value: unknown): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.length > MAX_SALT * 2 ||
+    !HEX_BYTES.test(value)
+  ) {
+    throw new ValidationError(
+      "salt must be an even-length hex string of 1-64 bytes.",
+      "salt",
+      "INVALID_SALT",
+    );
+  }
+  return value;
 }

@@ -13,14 +13,12 @@
 
 import { SubrosaError } from "../core/errors.js";
 import { validateNearAccountId } from "../settlement/destination.js";
-import { isHex64 } from "../crypto/hashUtils.js";
+import { HEX_BYTES, MAX_SALT, U128_MAX, isHex64 } from "../crypto/hashUtils.js";
 
-/** Maximum value of a `u128` amount (smallest token units). */
-export const U128_MAX = (1n << 128n) - 1n;
+export { U128_MAX };
 
 /** Maximum accepted salt length in bytes (the contract stores `Vec<u8>`). */
-export const MAX_SALT_BYTES = 64;
-
+export const MAX_SALT_BYTES = MAX_SALT;
 /** One payout line ready for batch commit and confidential settlement. */
 export interface BatchPaymentEntry {
   /** Employee NEAR account id (implicit 64-hex accounts are valid ids too). */
@@ -81,8 +79,6 @@ export class BatchValidationFailedError extends SubrosaError {
 /** Intents asset-id prefixes accepted alongside plain NEP-141 account ids. */
 const INTENTS_ASSET_PREFIXES: readonly string[] = ["nep141:", "nep245:"];
 
-const HEX_PATTERN = /^[0-9a-fA-F]+$/;
-
 /**
  * True when the value is a NEAR account id or an Intents asset id
  * (`nep141:<account>` / `nep245:<account>`). Intents ids come from
@@ -96,10 +92,9 @@ export function isValidNearAssetId(value: unknown): boolean {
 }
 
 function normalizeSalt(salt: unknown): string | undefined {
-  if (typeof salt !== "string" || salt.length === 0 || salt.length % 2 !== 0) {
+  if (typeof salt !== "string" || !HEX_BYTES.test(salt)) {
     return undefined;
   }
-  if (!HEX_PATTERN.test(salt)) return undefined;
   return salt.length <= MAX_SALT_BYTES * 2 ? salt : undefined;
 }
 
@@ -109,9 +104,126 @@ function normalizeSalt(salt: unknown): string | undefined {
  * @returns Structured errors; an empty array means the batch is valid.
  */
 export function validateBatchPayload(entries: readonly BatchPaymentEntry[]): BatchValidationError[] {
-  const builder = new BatchPayloadBuilder();
-  builder.addMany(entries);
-  return builder.validate();
+  const errors: BatchValidationError[] = [];
+
+  if (entries.length === 0) {
+    errors.push({
+      code: "EMPTY_BATCH",
+      message: "Batch must contain at least one payment entry",
+      field: "entries",
+    });
+    return errors;
+  }
+
+  const seenCommitments = new Map<string, number>();
+  const seenEmployeeCycles = new Map<string, number>();
+
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index];
+
+    const employeeCheck = validateNearAccountId(entry.employee);
+    if (!employeeCheck.ok) {
+      errors.push({
+        code: "INVALID_EMPLOYEE",
+        message: `Employee account id is invalid (${employeeCheck.code}).`,
+        field: "employee",
+        index,
+      });
+    }
+
+    if (typeof entry.commitment_hash !== "string" || !isHex64(entry.commitment_hash)) {
+      errors.push({
+        code: "INVALID_COMMITMENT_HASH",
+        message: "Commitment hash must be a 64-character hex string.",
+        field: "commitment_hash",
+        index,
+      });
+    } else {
+      const normalized = entry.commitment_hash.toLowerCase();
+      const firstIndex = seenCommitments.get(normalized);
+      if (firstIndex !== undefined) {
+        errors.push({
+          code: "DUPLICATE_COMMITMENT",
+          message: `Commitment hash duplicates the entry at index ${firstIndex}. A commitment must never be submitted twice in one batch.`,
+          field: "commitment_hash",
+          index,
+        });
+      } else {
+        seenCommitments.set(normalized, index);
+      }
+    }
+
+    if (
+      typeof entry.cycle_id !== "number" ||
+      !Number.isSafeInteger(entry.cycle_id) ||
+      entry.cycle_id < 0
+    ) {
+      errors.push({
+        code: "INVALID_CYCLE_ID",
+        message: "Cycle id must be a non-negative safe integer (u64 range).",
+        field: "cycle_id",
+        index,
+      });
+    } else if (employeeCheck.ok) {
+      const cycleKey = `${employeeCheck.destination}\u0000${entry.cycle_id}`;
+      const firstIndex = seenEmployeeCycles.get(cycleKey);
+      if (firstIndex !== undefined) {
+        errors.push({
+          code: "DUPLICATE_EMPLOYEE_CYCLE",
+          message: `Employee already has a commitment for this cycle at index ${firstIndex}. Two commitments for one cycle would overwrite on-chain state.`,
+          field: "cycle_id",
+          index,
+        });
+      } else {
+        seenEmployeeCycles.set(cycleKey, index);
+      }
+    }
+
+    if (typeof entry.amount !== "bigint" || entry.amount <= 0n || entry.amount > U128_MAX) {
+      errors.push({
+        code: "INVALID_AMOUNT",
+        message: "Amount must be a positive bigint in smallest units, at most u128::MAX.",
+        field: "amount",
+        index,
+      });
+    }
+
+    if (normalizeSalt(entry.salt) === undefined) {
+      errors.push({
+        code: "INVALID_SALT",
+        message: `Salt must be a non-empty even-length hex string of at most ${MAX_SALT_BYTES} bytes.`,
+        field: "salt",
+        index,
+      });
+    }
+
+    if (typeof entry.asset !== "string" || entry.asset.trim() === "") {
+      errors.push({
+        code: "MISSING_ASSET",
+        message: "Asset identifier is required.",
+        field: "asset",
+        index,
+      });
+    } else if (!isValidNearAssetId(entry.asset)) {
+      errors.push({
+        code: "INVALID_ASSET",
+        message: 'Asset must be a NEAR account id or an Intents asset id ("nep141:" / "nep245:" prefix).',
+        field: "asset",
+        index,
+      });
+    }
+
+    if (typeof entry.memo !== "string") {
+      errors.push({
+        code: "INVALID_MEMO",
+        message: "Memo must be a string (use an empty string when there is no memo).",
+        field: "memo",
+        index,
+      });
+    }
+  }
+
+  return errors;
 }
 
 /**
@@ -142,126 +254,7 @@ export class BatchPayloadBuilder {
 
   /** Validates all entries without building. */
   validate(): BatchValidationError[] {
-    const errors: BatchValidationError[] = [];
-
-    if (this.entries.length === 0) {
-      errors.push({
-        code: "EMPTY_BATCH",
-        message: "Batch must contain at least one payment entry",
-        field: "entries",
-      });
-      return errors;
-    }
-
-    const seenCommitments = new Map<string, number>();
-    const seenEmployeeCycles = new Map<string, number>();
-
-    for (let index = 0; index < this.entries.length; index++) {
-      const entry = this.entries[index];
-
-      const employeeCheck = validateNearAccountId(entry.employee);
-      if (!employeeCheck.ok) {
-        errors.push({
-          code: "INVALID_EMPLOYEE",
-          message: `Employee account id is invalid (${employeeCheck.code}).`,
-          field: "employee",
-          index,
-        });
-      }
-
-      if (typeof entry.commitment_hash !== "string" || !isHex64(entry.commitment_hash)) {
-        errors.push({
-          code: "INVALID_COMMITMENT_HASH",
-          message: "Commitment hash must be a 64-character hex string.",
-          field: "commitment_hash",
-          index,
-        });
-      } else {
-        const normalized = entry.commitment_hash.toLowerCase();
-        const firstIndex = seenCommitments.get(normalized);
-        if (firstIndex !== undefined) {
-          errors.push({
-            code: "DUPLICATE_COMMITMENT",
-            message: `Commitment hash duplicates the entry at index ${firstIndex}. A commitment must never be submitted twice in one batch.`,
-            field: "commitment_hash",
-            index,
-          });
-        } else {
-          seenCommitments.set(normalized, index);
-        }
-      }
-
-      if (
-        typeof entry.cycle_id !== "number" ||
-        !Number.isSafeInteger(entry.cycle_id) ||
-        entry.cycle_id < 0
-      ) {
-        errors.push({
-          code: "INVALID_CYCLE_ID",
-          message: "Cycle id must be a non-negative safe integer (u64 range).",
-          field: "cycle_id",
-          index,
-        });
-      } else if (employeeCheck.ok) {
-        const cycleKey = `${employeeCheck.destination}\u0000${entry.cycle_id}`;
-        const firstIndex = seenEmployeeCycles.get(cycleKey);
-        if (firstIndex !== undefined) {
-          errors.push({
-            code: "DUPLICATE_EMPLOYEE_CYCLE",
-            message: `Employee already has a commitment for this cycle at index ${firstIndex}. Two commitments for one cycle would overwrite on-chain state.`,
-            field: "cycle_id",
-            index,
-          });
-        } else {
-          seenEmployeeCycles.set(cycleKey, index);
-        }
-      }
-
-      if (typeof entry.amount !== "bigint" || entry.amount <= 0n || entry.amount > U128_MAX) {
-        errors.push({
-          code: "INVALID_AMOUNT",
-          message: "Amount must be a positive bigint in smallest units, at most u128::MAX.",
-          field: "amount",
-          index,
-        });
-      }
-
-      if (normalizeSalt(entry.salt) === undefined) {
-        errors.push({
-          code: "INVALID_SALT",
-          message: `Salt must be a non-empty even-length hex string of at most ${MAX_SALT_BYTES} bytes.`,
-          field: "salt",
-          index,
-        });
-      }
-
-      if (typeof entry.asset !== "string" || entry.asset.trim() === "") {
-        errors.push({
-          code: "MISSING_ASSET",
-          message: "Asset identifier is required.",
-          field: "asset",
-          index,
-        });
-      } else if (!isValidNearAssetId(entry.asset)) {
-        errors.push({
-          code: "INVALID_ASSET",
-          message: 'Asset must be a NEAR account id or an Intents asset id ("nep141:" / "nep245:" prefix).',
-          field: "asset",
-          index,
-        });
-      }
-
-      if (typeof entry.memo !== "string") {
-        errors.push({
-          code: "INVALID_MEMO",
-          message: "Memo must be a string (use an empty string when there is no memo).",
-          field: "memo",
-          index,
-        });
-      }
-    }
-
-    return errors;
+    return validateBatchPayload(this.entries);
   }
 
   /**

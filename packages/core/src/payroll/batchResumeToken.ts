@@ -14,7 +14,7 @@
 import { computeBatchEntriesCommitment } from "../batch/commitment.js";
 import { assertValidPageSize, iterateBatches } from "../batch/paginate.js";
 import { ValidationError } from "../core/errors.js";
-import { sha256Hex } from "../crypto/hashUtils.js";
+import { isLowerHex64, sha256Hex } from "../crypto/hashUtils.js";
 
 /** Current resume-token schema version. */
 export const RESUME_TOKEN_VERSION = 1 as const;
@@ -65,7 +65,6 @@ export interface ResumeTokenOptions {
   now?: () => number;
 }
 
-const COMMITMENT_PATTERN = /^[0-9a-f]{64}$/;
 
 function checksumPayload(payload: string): string {
   return sha256Hex(payload).slice(0, 16);
@@ -204,8 +203,7 @@ export function decodeBatchResumeToken(token: string): BatchResumeCheckpoint {
     isNonNegativeSafeInteger(totalBatches) &&
     isNonNegativeSafeInteger(batchSize) &&
     batchSize > 0 &&
-    typeof entriesCommitment === "string" &&
-    COMMITMENT_PATTERN.test(entriesCommitment) &&
+    isLowerHex64(entriesCommitment) &&
     isNonNegativeSafeInteger(createdAt);
 
   if (!structurallyValid) {

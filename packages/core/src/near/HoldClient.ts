@@ -72,7 +72,7 @@ export class HoldClient {
   async createAuditHold(args: CreateAuditHoldArgs, opts?: NearContractCallOptions): Promise<void> {
     const holdId = assertNonEmptyString(args.holdId, "holdId");
     const scopeId = assertNonEmptyString(args.scopeId, "scopeId");
-    const idBytes = new TextEncoder().encode(holdId).length + new TextEncoder().encode(scopeId).length;
+    const idBytes = Buffer.byteLength(holdId, "utf8") + Buffer.byteLength(scopeId, "utf8");
     await this.near.call<null>(
       "create_audit_hold",
       {

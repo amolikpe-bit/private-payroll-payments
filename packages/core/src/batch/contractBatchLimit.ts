@@ -15,7 +15,7 @@ import {
   type BatchPaymentEntry,
   type BatchValidationError,
 } from "./BatchPayloadBuilder.js";
-import { MAX_BATCH_SIZE } from "./chunking.js";
+import { MAX_BATCH_SIZE, sliceChunks } from "./chunking.js";
 
 /** Options for {@link splitPayoutBatchByContractLimit}. */
 export interface ContractBatchLimitOptions {
@@ -91,11 +91,7 @@ export function splitPayoutBatchByContractLimit(
     };
   }
 
-  const chunks: BatchPaymentEntry[][] = [];
-  for (let index = 0; index < entries.length; index += maxBatchSize) {
-    chunks.push(entries.slice(index, index + maxBatchSize));
-  }
-
+  const chunks = sliceChunks(entries, maxBatchSize);
   return {
     chunks,
     wasSplit: chunks.length > 1,

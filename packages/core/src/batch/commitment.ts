@@ -10,7 +10,7 @@
  * payouts).
  */
 
-import { createHash } from "node:crypto";
+import { hash as cryptoHash } from "node:crypto";
 
 /** Domain separator for batch resume commitments. */
 export const BATCH_ENTRY_COMMITMENT_DOMAIN = "subrosa/batch-resume/v1";
@@ -43,23 +43,17 @@ function fieldValue(value: unknown): string {
  *   `commitment_hash`, `asset`, `memo` are read when present).
  */
 export function computeBatchEntriesCommitment(entries: readonly unknown[]): string {
-  const hash = createHash("sha256");
-  hash.update(BATCH_ENTRY_COMMITMENT_DOMAIN, "utf8");
-  hash.update(`\u0000${entries.length}`, "utf8");
-
+  let acc = `${BATCH_ENTRY_COMMITMENT_DOMAIN}\u0000${entries.length}`;
   for (const entry of entries) {
     const record: ExtractableEntry =
       entry !== null && typeof entry === "object" ? (entry as ExtractableEntry) : {};
-    const parts = [
-      fieldValue(record.employee ?? record.recipient),
-      fieldValue(record.commitment_hash ?? record.commitmentHash),
-      fieldValue(record.amount),
-      fieldValue(record.salt),
-      fieldValue(record.asset),
-      fieldValue(record.memo),
-    ];
-    hash.update(`\u0000${parts.join("\u0001")}`, "utf8");
+    acc +=
+      `\u0000${fieldValue(record.employee ?? record.recipient)}` +
+      `\u0001${fieldValue(record.commitment_hash ?? record.commitmentHash)}` +
+      `\u0001${fieldValue(record.amount)}` +
+      `\u0001${fieldValue(record.salt)}` +
+      `\u0001${fieldValue(record.asset)}` +
+      `\u0001${fieldValue(record.memo)}`;
   }
-
-  return hash.digest("hex");
+  return cryptoHash("sha256", acc);
 }

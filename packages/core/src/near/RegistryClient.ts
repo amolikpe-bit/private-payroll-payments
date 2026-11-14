@@ -39,7 +39,7 @@ export class RegistryClient {
   /** Register an employee with a commitment hash (never the salary itself). */
   async registerEmployee(args: RegisterEmployeeArgs, opts?: NearContractCallOptions): Promise<void> {
     const metadata = args.metadata ?? "";
-    const metadataBytes = new TextEncoder().encode(metadata).length;
+    const metadataBytes = Buffer.byteLength(metadata, "utf8");
     if (metadataBytes > 256) {
       throw new ValidationError("metadata must be at most 256 UTF-8 bytes.", "metadata");
     }

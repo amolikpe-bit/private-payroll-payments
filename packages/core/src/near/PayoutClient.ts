@@ -70,7 +70,7 @@ export class PayoutClient {
   /** Schedule a payout and return the per-employer payout id (1-based). */
   async schedulePayout(args: SchedulePayoutArgs, opts?: NearContractCallOptions): Promise<number> {
     const memo = args.memo ?? "";
-    const memoBytes = new TextEncoder().encode(memo).length;
+    const memoBytes = Buffer.byteLength(memo, "utf8");
     if (memoBytes > 256) {
       throw new ValidationError("memo must be at most 256 UTF-8 bytes.", "memo");
     }

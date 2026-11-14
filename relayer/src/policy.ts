@@ -7,7 +7,7 @@
  * transactions, which is exactly why receiver/method/deposit caps live here.
  */
 
-import { createHash } from "node:crypto";
+import { hash as cryptoHash } from "node:crypto";
 
 import {
   PublicKey,
@@ -31,6 +31,7 @@ const ACCOUNT_ID_PATTERN = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+
 const MIN_ACCOUNT_ID_LENGTH = 2;
 const MAX_ACCOUNT_ID_LENGTH = 64;
 const U64_MAX = (1n << 64n) - 1n;
+const UTF8_DECODER = new TextDecoder();
 
 /** Policy applied to every incoming signed delegate. */
 export interface DelegatePolicy {
@@ -87,7 +88,7 @@ function assertAccountId(value: unknown, field: "sender" | "receiver"): string {
 function decodeJsonArgs(args: Uint8Array): Record<string, unknown> {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(new TextDecoder().decode(args));
+    parsed = JSON.parse(UTF8_DECODER.decode(args));
   } catch {
     throw new RelayerError(
       "INVALID_ARGS",
@@ -149,7 +150,7 @@ function expectedDepositYocto(
     if (typeof metadata !== "string") {
       throw new RelayerError("INVALID_ARGS", "register_employee requires a string metadata field.");
     }
-    const metadataBytes = new TextEncoder().encode(metadata).length;
+    const metadataBytes = Buffer.byteLength(metadata, "utf8");
     if (metadataBytes > policy.deposit.maxMetadataBytes) {
       throw new RelayerError(
         "INVALID_ARGS",
@@ -317,7 +318,7 @@ export function verifyDelegateSignature(signedDelegate: SignedDelegate): void {
     throw new RelayerError("INVALID_SIGNATURE", "Signed delegate has no signature bytes.");
   }
   const encoded = encodeDelegateAction(signedDelegate.delegateAction);
-  const digest = new Uint8Array(createHash("sha256").update(encoded).digest());
+  const digest = cryptoHash("sha256", encoded, "buffer");
   const publicKey = PublicKey.from(signedDelegate.delegateAction.publicKey);
   if (!publicKey.verify(digest, signature)) {
     throw new RelayerError("INVALID_SIGNATURE", "Delegate signature does not verify.");
