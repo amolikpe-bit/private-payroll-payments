@@ -30,7 +30,7 @@ sequenceDiagram
     Note over C: one write burns 2.348758401541 TGas gross
     end
     rect rgb(255,244,214)
-    Note over S,C: PHASE 3 — generate and verify proof
+    Note over S,C: PHASE 3 — recompute and compare the commitment
     S->>S: rebuild Borsh preimage, compare hash
     alt amount changed
         S-->>S: reject, no proof
@@ -66,12 +66,6 @@ sequenceDiagram
     S->>N: SocialDB audit entry, hashes only
     end
 ```
-
-## At a glance
-
-- One salary commitment: **374 B = 0.00374 NEAR** of storage and **2.348758401541 TGas** gross, measured from a sandbox capture.
-- Zero-funds demo: `npm run demo` — nine stages, dry quotes only, `fundsMoved=0`.
-- Quickstart: `npm install && npm run build && node examples/private-payroll-simulation.ts`.
 
 ## What is built
 
@@ -115,11 +109,9 @@ simulation complete: commitments=1 verified=1 confidential=gated publicDryQuotes
 `node examples/payroll-execution.ts` runs a two-employee batch via dry preflight.
 While the User-Session gate holds, it ends with `dry preflight gated: payouts=2/2 validated=local fundsMoved=0`.
 
-## Zero-funds demo (PIN 3)
+## Zero-funds demo
 
-The demo builds the SDK first and needs network access to 1Click. It needs nothing else: no wallet, no key, no funds.
-
-`scripts/demo.ts` prints nine stages, then exits non-zero if anything unexpected happens. Three representative lines:
+The demo builds the SDK first and needs network access to 1Click and nothing else. `scripts/demo.ts` prints nine stages, then exits non-zero if anything unexpected happens. Three representative lines:
 
 ```text
 [1/9] config: network=testnet contract=subrosa.testnet oneclick=1click.chaindefuser.com apiKey=none funds=0 session=none
@@ -131,7 +123,7 @@ Stages: config, `/v0/tokens` asset lookup, three commitment hashes, batch check,
 
 Without funds, it tests commitment hashes, batch validation, confidential request validation (401 gate), and a public dry quote. It also tests opaque-token batch resume and secret redaction across output. It fails closed on non-dry quotes, deposit addresses in dry quotes, unexpected errors, rejected tokens, or printed secrets.
 
-## Confidential Intents (PIN 2)
+## Confidential Intents
 
 **Confidential Intents** is the 1Click private shard (`CONFIDENTIAL_INTENTS` for `recipientType`, `depositType`, `refundType`). The SDK keeps these as plain JSON strings so no nested private-intents type crosses the client boundary.
 
@@ -142,7 +134,7 @@ Without funds, it tests commitment hashes, batch validation, confidential reques
 
 No public Confidential Intents testnet exists, so every quote uses `dry: true`. A dry quote checks assets, recipient pair, slippage, deadline, and signature without deposit addresses or funds.
 
-## D20: the User-Session gate (PIN 3 in practice)
+## D20: the User-Session gate
 
 1Click rejects confidential quotes without a User-Session token:
 
@@ -152,30 +144,15 @@ HTTP 401 "User authentication is required for confidential intent quotes"
 
 Getting a User-Session requires proving wallet key ownership: sign `intents: []` via NEP-413, then exchange at `/v0/auth/authenticate`. That needs a human wallet key, so zero-credential confidential dry quotes fail today. This is a human gate, not a bug. Demo and examples assert 401 and validate confidential requests locally instead of faking quotes.
 
-Supply `ONECLICK_USER_SESSION` to take the live confidential dry-quote path. Invalid tokens fail closed. PIN 3 runs dry quotes only: no deposit address, no signature submission, no funds.
+Supply `ONECLICK_USER_SESSION` to take the live confidential dry-quote path; invalid tokens fail closed. Dry quotes only: no deposit address, no signature submission, no funds.
 
-## Headline number (PIN 4)
+## Headline number
 
 One salary commitment costs **374 B = 0.00374 NEAR** of storage and burns **2.348758401541 TGas** gross.
 Storage matches `storage_usage` delta at 1e19 yoctoNEAR/byte (`COMMITMENT_RECORD_BYTES`, asserted on chain).
 Gas is measured `total_gas_burnt` for one `commit_salary` write. A 50-item batch reserves 0.187 NEAR.
 
-Reproduce both from a clean checkout:
-
-```bash
-# 1. capture one real write on the pinned sandbox
-(cd contract && cargo near build non-reproducible-wasm)
-mkdir -p target/numbers
-cargo +1.95.0 test -p subrosa-contract --test sandbox sandbox_registry_commitments_and_pause \
-  -- --test-threads=1 --nocapture 2>&1 | tee target/numbers/capture.log
-
-# 2. reduce the capture to the two numbers above
-npm run numbers -- --capture target/numbers/capture.log
-```
-
-`scripts/numbers.ts` reads the capture file and prints gas and storage deltas. It fails closed if the capture is missing, malformed, or differs from the pinned claim.
-A valid run ends with `OK: capture matches the pinned claim in NUMBERS.md.`. `--json` writes machine-readable output for diffing.
-See `NUMBERS.md` for full accounting and rerun proof.
+`scripts/numbers.ts` reduces one capture file to the two deltas above. It fails closed if the capture is missing, malformed, or differs from the pinned claim. A valid run ends with `OK: capture matches the pinned claim in NUMBERS.md.`; `--json` writes machine-readable output for diffing. See `NUMBERS.md` for full accounting, the capture command, and rerun proof.
 
 Gas is **gross**: protocol 87 (`RemoveGasRewards`, HSP-027) removed the 30% developer rebate.
 
@@ -223,9 +200,7 @@ SDK pins near-api-js 7.5.3, near-social-js 2.0.4, `@hot-labs/near-connect` 0.12.
 - **Atomic on-chain payout or balance calls.** Settlement is off chain via Confidential Intents. Async outcomes cannot roll back on chain.
 - **Companion contracts from origin.** Their license metadata is `NOASSERTION`. They are not copied. `contract/` is clean-room.
 - **KYC/sanctions integrations and hosted indexer.** The SDK provides an event cursor and idempotent processor. No indexer service is deployed.
-- **Hosted relayer, backend, or UI.** Relayer runs locally on testnet. Deployment, recording, and submission are human steps.
-
-Every number in this file is a pinned protocol constant, a contract constant, or an output of the commands above.
+- **Hosted relayer, backend, or UI.** Relayer runs locally on testnet.
 
 ## Security limits
 
@@ -238,19 +213,18 @@ Every number in this file is a pinned protocol constant, a contract constant, or
   Other record sizes: 374 B commitment, 258 B payout + memo, 186 B hold, 73 B proof nullifier.
 - **Deposit address is a correlation secret.** `/v0/status` echoes quote responses. Audit trail keeps commitment and intent hashes only. Flow errors are redacted.
 - **Async settlement.** `mark_settled` runs on `SUCCESS`. `FAILED`/`REFUNDED` map to `mark_failed`. `INCOMPLETE_DEPOSIT` surfaces without an on-chain write.
-- **No gas rebate.** Budget gross gas. Protocol 87 removed the developer rebate.
 
 ## Origin, baseline, and status
 
 <!-- origin-disclosure:start -->
 This port starts from MIT-licensed `zkpayroll/zk-payroll-sdk` (https://github.com/zkpayroll/zk-payroll-sdk).
-Its `dev` HEAD `a3166417082436901aa2b66618fdaf9c6c08ae17` (1,050 files) was fetched and committed unmodified as `b7bafa51c1262bbe4322391584e3212d26c37b9a`. Waves 2-4 build on it.
+Its `dev` HEAD `a3166417082436901aa2b66618fdaf9c6c08ae17` (1,050 files) was fetched and committed unmodified as `b7bafa51c1262bbe4322391584e3212d26c37b9a`.
 Delta to upstream `dev`: https://github.com/zkpayroll/zk-payroll-sdk/compare/a3166417082436901aa2b66618fdaf9c6c08ae17...dev
 
 Origin companion contracts carry `NOASSERTION` license metadata and are excluded. The Rust contract under `contract/` is a clean-room implementation of the documented method surface (see `ATTRIBUTION.md`).
 <!-- origin-disclosure:end -->
 
-This repository is production tooling for a port, not a hackathon entry. No award, prize, ranking, or winner status is claimed for it. Submission, recording, and hosting are human-only steps. Nothing here posts an application or contacts a program on your behalf.
+This repository is production tooling for a port, not a hackathon entry.
 
 ## License
 
