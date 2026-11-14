@@ -1,7 +1,5 @@
 # subrosa
 
-Private payroll on NEAR. Employers register workers, publish commitment hashes, and settle via **Confidential Intents**; public state hides amounts and payer-payee links. The contract never holds funds: settlement runs off chain on the 1Click Confidential Intents API and reports via `mark_settled` or `mark_failed`.
-
 License: MIT (see `LICENSE`, which retains the origin copyright notice, and `ATTRIBUTION.md`). Tracks: `privacy`, `realworld`. Baseline: tag `pre-hackathon` marks the imported upstream tree (`zkpayroll/zk-payroll-sdk`) at `b7bafa5`; full accounting under "Baseline and disclosure" below. Q-015 (second project on the same email): **krater** (AMM pool, tracks `defi`).
 
 ```mermaid
@@ -57,12 +55,9 @@ Contract surface: `new`; enrolment via `register_employee`, `update_employee`, `
 
 Holds and governance: `create_audit_hold`, `release_audit_hold`, `grant_auditor`, `revoke_auditor`, owner-only `set_pause`, verification keys, and Groth16 `verify_proof`. Events use NEP-297 standard `subrosa` (`1.0.0`): `EmployeeRegistered`, `EmployeeUpdated`, `SalaryCommitted`, `AuditorChanged`, `PayoutScheduled`, `PayoutStateChanged`, `AuditHoldChanged`, `ProofVerified`.
 
-Flow: register -> commit -> schedule (`PrivatePayoutFlow`) -> hold gate -> destination gate -> commitment check -> quote; then NEP-413 sign -> `/v0/submit-intent` -> poll -> `mark_settled` (`SUCCESS`) or `mark_failed` (`FAILED`/`REFUNDED`).
-`PayrollService.processPayment` enforces every gate. Amounts and salts stay in memory and never enter args, logs, or errors.
+`PayrollService.processPayment` enforces every gate.
 
 ## Quickstart: do this, see that
-
-Numbered repro (do X, see Y). Node.js 26.0.0 or newer, then:
 
 1. `npm install` → workspace dependencies installed, exit 0.
 2. `npm run build` → see the `near-subrosa-core` build finish, exit 0.
@@ -81,15 +76,11 @@ While the User-Session gate holds, it ends with `dry preflight gated: payouts=2/
 
 ## Zero-funds demo
 
-The demo builds the SDK first and needs network access to 1Click and nothing else. `scripts/demo.ts` prints nine stages, then exits non-zero if anything unexpected happens. Three representative lines:
-
 ```text
 [1/9] config: network=testnet contract=subrosa.testnet oneclick=1click.chaindefuser.com apiKey=none funds=0 session=none
 [5/9] confidential-quote: gated=401 User-Session-required; preflight=fail-closed (no key or funds in demo)
 [9/9] summary: commitments=3 confidentialDryQuotes=0 publicDryQuotes=1 confidential=gated resumed=1 secretsLeaked=0 fundsMoved=0
 ```
-
-Without funds, it tests commitment hashes, batch validation, confidential request validation (401 gate), and a public dry quote. It also tests opaque-token batch resume and secret redaction across output. It fails closed on non-dry quotes, deposit addresses in dry quotes, unexpected errors, rejected tokens, or printed secrets.
 
 ## Confidential Intents
 
@@ -99,17 +90,11 @@ Without funds, it tests commitment hashes, batch validation, confidential reques
 - `ConfidentialPayout` owns quote -> sign -> submit -> poll. It maps `SUCCESS`, `FAILED`, `REFUNDED`, `INCOMPLETE_DEPOSIT`.
 - Partner JWT travels only in `X-API-Key`. It never enters a URL, error, or returned object.
 
-No public Confidential Intents testnet exists, so every quote uses `dry: true`. A dry quote checks assets, recipient pair, slippage, deadline, and signature without deposit addresses or funds.
-
 ## D20: the User-Session gate
-
-1Click rejects confidential quotes without a User-Session token:
 
 ```text
 HTTP 401 "User authentication is required for confidential intent quotes"
 ```
-
-Getting a User-Session requires proving wallet key ownership: sign `intents: []` via NEP-413, then exchange at `/v0/auth/authenticate`. That needs a human wallet key, so zero-credential confidential dry quotes fail today. This is a human gate, not a bug. Demo and examples assert 401 and validate confidential requests locally instead of faking quotes.
 
 Supply `ONECLICK_USER_SESSION` to take the live confidential dry-quote path; invalid tokens fail closed. Dry quotes only: no deposit address, no signature submission, no funds.
 
@@ -119,8 +104,6 @@ One salary commitment costs **374 B = 0.00374 NEAR** of storage and burns **2.34
 Storage matches `storage_usage` delta at 1e19 yoctoNEAR/byte (`COMMITMENT_RECORD_BYTES`, asserted on chain).
 
 `scripts/numbers.ts` reduces one capture file to the two deltas above. It fails closed if the capture is missing, malformed, or differs from the pinned claim. A valid run ends with `OK: capture matches the pinned claim in NUMBERS.md.`; `--json` writes machine-readable output for diffing. See `NUMBERS.md` for full accounting, the capture command, and rerun proof.
-
-Gas is **gross**: protocol 87 (`RemoveGasRewards`, HSP-027) removed the 30% developer rebate.
 
 ## Contract on testnet (optional)
 
@@ -158,13 +141,6 @@ Toolchain: Rust >= 1.95 (tested 1.100.0, edition 2024), near-sdk 5.30.2, near-sd
 ## Limits and out of scope
 
 - **Delegated approver flows.** No `assign`/`get`/`revoke` approval assignment. Every row is owned by the employer that wrote it.
-- **Separation of duties (SoD), approval expiry, multi-signature coordination.** No role derivation or policy engine. These stay client-side.
-- **5-category pause.** The contract keeps one global pause (`set_pause`, owner-only) that blocks every mutating method.
-- **Amendments, archive, reconciliation, disputes, webhooks.** Not ported.
-- **On-chain amount reveal or commitment checks.** NEAR state is public. Clients verify commitments off chain. Disclosure uses CSV from `AuditorDisclosureExporter`.
-- **Atomic on-chain payout or balance calls.** Settlement is off chain via Confidential Intents. Async outcomes cannot roll back on chain.
-- **KYC/sanctions integrations and hosted indexer.** The SDK provides an event cursor and idempotent processor. No indexer service is deployed.
-- **Hosted relayer, backend, or UI.** Relayer runs locally on testnet.
 
 ## Security limits
 
@@ -175,8 +151,6 @@ Toolchain: Rust >= 1.95 (tested 1.100.0, edition 2024), near-sdk 5.30.2, near-sd
 - **Relayer pays gas and inner storage.** Outer tx uses an NEP-611 gas key (up to 1,024 nonce lanes). Liquid balance pays inner deposits. Fund both.
 - **Retained storage deposits.** Contract keeps deposits with no refund path. Attach exact storage: 567 B employee + metadata (<= 256 B).
   Other record sizes: 374 B commitment, 258 B payout + memo, 186 B hold, 73 B proof nullifier.
-- **Deposit address is a correlation secret.** `/v0/status` echoes quote responses. Audit trail keeps commitment and intent hashes only. Flow errors are redacted.
-- **Async settlement.** `mark_settled` runs on `SUCCESS`. `FAILED`/`REFUNDED` map to `mark_failed`. `INCOMPLETE_DEPOSIT` surfaces without an on-chain write.
 
 ## Origin, baseline, and status
 
