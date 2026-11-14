@@ -11,7 +11,7 @@
  * because a quote's deposit address is needed to correlate the private receipt.
  */
 
-import { chmod, lstat, mkdir, readFile, unlink } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile } from "node:fs/promises";
 import { atomicWriteFile } from "../core/atomicWrite.js";
 import { dirname, resolve } from "node:path";
 

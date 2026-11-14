@@ -8,6 +8,7 @@
  * exists because NEAR's confidential rail has no viewing-key primitive.
  */
 
+import { baseDecode } from "near-api-js";
 import type { HoldEntry } from "../types.js";
 import { sha256Hex, isHex64 } from "../crypto/hashUtils.js";
 
@@ -344,7 +345,7 @@ export function isValidIntentHash(value: unknown): value is string {
     return false;
   }
   try {
-    return decodeBase58(value).length === 32;
+    return baseDecode(value).length === 32;
   } catch {
     return false;
   }
@@ -377,12 +378,20 @@ function isValidReceiptId(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
 }
 
+function hasControlChar(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
 function assertPayrollId(value: unknown): asserts value is string {
   if (
     typeof value !== "string" ||
     value.trim().length === 0 ||
     value.length > 128 ||
-    /[\u0000-\u001f\u007f]/.test(value)
+    hasControlChar(value)
   ) {
     throw new ReceiptError(ReceiptErrorCode.PAYROLL_ID_INVALID, "Payroll id must be a short printable string.");
   }
@@ -402,7 +411,7 @@ function assertHoldId(value: unknown): asserts value is string {
     typeof value !== "string" ||
     value.trim().length === 0 ||
     value.length > 128 ||
-    /[\u0000-\u001f\u007f]/.test(value)
+    hasControlChar(value)
   ) {
     throw new ReceiptError(ReceiptErrorCode.COMPLIANCE_HASH_INVALID, "Audit hold id is invalid.");
   }
@@ -434,7 +443,7 @@ function isEd25519(value: string, expectedBytes: 32 | 64): boolean {
     return false;
   }
   try {
-    return decodeBase58(value.slice("ed25519:".length)).length === expectedBytes;
+    return baseDecode(value.slice("ed25519:".length)).length === expectedBytes;
   } catch {
     return false;
   }
@@ -465,33 +474,4 @@ function isValidTimestamp(value: unknown): boolean {
 
 function invalid(code: ReceiptErrorCode, message: string): SettlementReceiptValidation {
   return { ok: false, code, message };
-}
-
-const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-
-function decodeBase58(value: string): Uint8Array {
-  if (value.length === 0) {
-    throw new Error("empty base58");
-  }
-  let zeros = 0;
-  while (zeros < value.length && value[zeros] === "1") {
-    zeros += 1;
-  }
-  let numeric = 0n;
-  for (const character of value) {
-    const digit = BASE58_ALPHABET.indexOf(character);
-    if (digit < 0) {
-      throw new Error("invalid base58");
-    }
-    numeric = numeric * 58n + BigInt(digit);
-  }
-  const bytes: number[] = [];
-  while (numeric > 0n) {
-    bytes.push(Number(numeric & 0xffn));
-    numeric >>= 8n;
-  }
-  bytes.reverse();
-  const out = new Uint8Array(zeros + bytes.length);
-  out.set(bytes, zeros);
-  return out;
 }

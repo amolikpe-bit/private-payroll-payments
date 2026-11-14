@@ -176,7 +176,7 @@ class DryOnlyTransport implements OneClickTransport {
         url.searchParams.set(key, String(value));
       }
     }
-    const headers: Record<string, string> = { ...(request.headers ?? {}) };
+    const headers: Record<string, string> = { ...request.headers };
     if (
       request.body !== undefined &&
       !Object.keys(headers).some((name) => name.toLowerCase() === "content-type")

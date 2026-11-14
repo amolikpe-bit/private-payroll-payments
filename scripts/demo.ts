@@ -124,7 +124,7 @@ class DemoSessionTransport implements OneClickTransport {
         url.searchParams.set(key, String(value));
       }
     }
-    const headers: Record<string, string> = { ...(request.headers ?? {}) };
+    const headers: Record<string, string> = { ...request.headers };
     if (this.#accessToken !== undefined && headers.authorization === undefined) {
       headers.authorization = `Bearer ${this.#accessToken}`;
     }

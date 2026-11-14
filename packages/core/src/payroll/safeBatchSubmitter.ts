@@ -89,7 +89,7 @@ export type BatchSubmitFn<T, R> = (
 ) => Promise<R[]>;
 
 /** Configuration for safe sequential batch submission. */
-export interface SafeBatchSubmissionOptions<T = PendingPayout, R = ConfidentialPayoutResult> {
+export interface SafeBatchSubmissionOptions<_T = PendingPayout, R = ConfidentialPayoutResult> {
   /** Number of items per batch (default: 50). */
   batchSize?: number;
   /** Maximum retry attempts per batch on transient errors (default: 3). */

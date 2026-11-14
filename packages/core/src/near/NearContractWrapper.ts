@@ -204,7 +204,7 @@ export class NearContractWrapper {
     if (views.length === 0) {
       return [];
     }
-    const results = new Array<T>(views.length);
+    const results = Array.from<T>({ length: views.length });
     let next = 0;
     const worker = async (): Promise<void> => {
       for (;;) {

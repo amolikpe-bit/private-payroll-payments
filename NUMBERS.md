@@ -3,7 +3,7 @@
 One `commit_salary` call on the pinned sandbox wasm, measured from the
 transaction outcome and the contract account's `storage_usage` delta.
 
-**Gross gas: `2,353,357,561,394` gas = `2.353357561394` TGas.**
+**Gross gas: `2,349,590,622,921` gas = `2.349590622921` TGas.**
 **Storage: `374` B = `0.00374` NEAR at the sandbox price of `1e19`
 yoctoNEAR/byte.**
 
@@ -17,8 +17,8 @@ security-only patch. The claim therefore budgets the full burnt amount.
 
 | Quantity | Value | Unit |
 | --- | --- | --- |
-| Gross gas burnt | `2,353,357,561,394` | gas |
-| Gross gas burnt | `2.353357561394` | TGas (`1 TGas = 1e12 gas`) |
+| Gross gas burnt | `2,349,590,622,921` | gas |
+| Gross gas burnt | `2.349590622921` | TGas (`1 TGas = 1e12 gas`) |
 | Commitment storage delta | `374` | bytes |
 | Storage price (sandbox) | `1e19` | yoctoNEAR per byte |
 | Storage cost | `3,740,000,000,000,000,000,000` | yoctoNEAR |
@@ -104,7 +104,7 @@ W4_CAPTURE commitment_gas_burnt=<u64> commitment_storage_delta=<u64>
 The current values are:
 
 ```text
-W4_CAPTURE commitment_gas_burnt=2353357561394 commitment_storage_delta=374
+W4_CAPTURE commitment_gas_burnt=2349590622921 commitment_storage_delta=374
 ```
 
 - `commitment_gas_burnt` is `ExecutionFinalResult.total_gas_burnt.as_gas()` for
@@ -126,7 +126,7 @@ W4_CAPTURE commitment_gas_burnt=2353357561394 commitment_storage_delta=374
   "captured_at": "2026-11-12T00:00:00Z",
   "tx_hash": "<base58 transaction hash>",
   "storage_byte_cost_yocto": "10000000000000000000",
-  "commitment_gas_burnt": "2353357561394",
+  "commitment_gas_burnt": "2349590622921",
   "commitment_storage_delta": 374
 }
 ```

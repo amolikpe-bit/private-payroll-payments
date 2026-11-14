@@ -91,9 +91,9 @@ export function resolveRetryBudget(
   input: { budgets?: RetryBudgetByOperation; overrides?: Partial<RetryBudgetConfig> } = {},
 ): RetryBudgetConfig {
   return {
-    ...(DEFAULT_RETRY_BUDGETS[operationType] ?? {}),
-    ...(input.budgets?.[operationType] ?? {}),
-    ...(input.overrides ?? {}),
+    ...DEFAULT_RETRY_BUDGETS[operationType],
+    ...input.budgets?.[operationType],
+    ...input.overrides,
   } as RetryBudgetConfig;
 }
 
@@ -205,7 +205,7 @@ function runAttemptWithTimeout<T>(
   attemptTimeoutMs: number | undefined,
   sleep: SleepFn,
   signal: AbortSignal | undefined,
-  operationType: RetryOperationType,
+  _operationType: RetryOperationType,
 ): Promise<AttemptResult<T>> {
   if (attemptTimeoutMs === undefined) {
     return invoke().then((value) => ({ timedOut: false as const, value }));

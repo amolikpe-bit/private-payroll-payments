@@ -7,15 +7,17 @@ No push, no remote, no tags, no X post, no submit. Local commit only.
 
 ```
 npm run typecheck              -> EXIT 0 (TS 7.0.2)
-npm test                       -> 197 tests / 197 pass / 0 fail / 19 suites
+npm test                       -> 199 tests / 199 pass / 0 fail / 22 suites
 npm run build                  -> EXIT 0
 node scripts/demo.ts           -> EXIT 0, 9/9, fundsMoved=0
 node scripts/w4-dry-run.ts     -> EXIT 0, 10/10, secretHits=0
 node scripts/check-oneclick-schema.ts -> EXIT 0, 6/6
 npm run test:relayer           -> EXIT 0
-cargo check --target wasm32-unknown-unknown -p subrosa-contract -> EXIT 0
-cargo test --lib -p subrosa-contract -> 46 passed / 0 failed
-git diff --check               -> clean
+cargo near check --clippy                                         -> EXIT 0
+cargo near build non-reproducible-wasm                            -> EXIT 0 (276,914 B)
+cargo test --lib -p subrosa-contract                              -> 46 passed / 0 failed
+cargo test -p subrosa-contract --test sandbox                     -> 4 passed / 0 failed
+git diff --check                                                  -> clean
 ```
 
 Windows `cargo test` needs `NEAR_SANDBOX_BIN_PATH` or WSL2 linux-x86_64 (both
@@ -66,10 +68,10 @@ same requestId.
 
 ## Blockers (do not block submission)
 
-Celesto `Trial credit is too low to start this sandbox` → clippy/cargo-near/
-sandbox BLOCKED-BY-CELESTO. Firecrawl credits BLOCKED. Exa MCP 402 → direct
-REST. HELD: `cargo fmt --check` pre-existing import ordering, TS2339
-`Uint8Array.toHex()`, 70 ABI-distinct cargo major pairs. BoxLite §6 MEASURED
+None on build/test gates: Celesto Box B executed `cargo fmt --check`,
+`cargo clippy`, `cargo near check --clippy`, `cargo near build`, `cargo test`
+(46 unit + 4 sandbox), `oxlint` (0/0), and Node/TS gates cleanly.
+HELD: 64 ABI-distinct cargo major-version pairs. BoxLite §6 MEASURED
 `uScD0lurFrem`.
 
 ## Attestation

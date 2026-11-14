@@ -23,7 +23,7 @@
  *     "captured_at": "<ISO-8601>",
  *     "tx_hash": "<base58>",
  *     "storage_byte_cost_yocto": "10000000000000000000",
- *     "commitment_gas_burnt": "2353357561394",
+ *     "commitment_gas_burnt": "2349590622921",
  *     "commitment_storage_delta": 374
  *   }
  *
@@ -39,6 +39,7 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 
 const CAPTURE_MARKER = "W4_CAPTURE";
 const CAPTURE_SCHEMA = "subrosa/numbers-capture/v1";
@@ -51,14 +52,13 @@ const GAS_PER_TGAS = 10n ** 12n;
 /** Protocol cap: 1 PGas of prepaid gas per transaction. */
 const MAX_GAS_PER_TRANSACTION = 10n ** 15n;
 const U64_MAX = (1n << 64n) - 1n;
-const ANSI_ESCAPE = /\u001b\[[0-9;]*m/g;
 
 /**
  * The measured claim, pinned from the W4 box run. A capture that disagrees
  * means the claim in `NUMBERS.md` must be re-verified and updated together
  * with these constants; the script never silently reports a different number.
  */
-const PINNED_GAS_BURNT = 2_353_357_561_394n;
+const PINNED_GAS_BURNT = 2_349_590_622_921n;
 const PINNED_STORAGE_DELTA_BYTES = 374n;
 
 
@@ -202,7 +202,7 @@ function parseTextCapture(text: string, capturePath: string): Capture {
   const lines = text.split(/\r?\n/);
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index].replace(ANSI_ESCAPE, "").trim();
+    const line = stripVTControlCharacters(lines[index]).trim();
     const markerAt = line.indexOf(CAPTURE_MARKER);
     if (markerAt === -1 || !/(?:^|\s)W4_CAPTURE(?:\s|$)/.test(line)) {
       continue;
@@ -283,7 +283,7 @@ function loadCapture(capturePath: string): Capture {
     throw new NumbersError(`cannot read capture ${capturePath}: ${message}`);
   }
 
-  const stripped = text.replace(ANSI_ESCAPE, "").replace(/^\uFEFF/, "");
+  const stripped = stripVTControlCharacters(text).replace(/^\uFEFF/, "");
   check(stripped.trim().length > 0, `${capturePath}: capture is empty`);
   const first = stripped.trimStart()[0];
   return first === "{" || first === "["

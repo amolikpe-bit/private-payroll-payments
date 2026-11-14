@@ -440,7 +440,7 @@ export class PayrollService {
       }
     }
 
-    const outcomes: Array<{ hold: HoldEntry | null; error?: unknown }> = new Array(holdIds.length);
+    const outcomes = Array.from<{ hold: HoldEntry | null; error?: unknown }>({ length: holdIds.length });
     if (holdIds.length === 1) {
       try {
         outcomes[0] = { hold: await this.deps.holds.getAuditHold(holdIds[0]) };

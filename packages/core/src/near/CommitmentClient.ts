@@ -15,7 +15,6 @@ import type { CommitmentEntry, CommitItem } from "../types.js";
 import type { NearContractWrapper, NearContractCallOptions } from "./NearContractWrapper.js";
 import {
   assertSafeU64,
-  formatNearFromYocto,
   normalizeCommitmentHash,
   parseCommitmentEntry,
   parseCount,

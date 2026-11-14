@@ -45,9 +45,10 @@ async function serve(): Promise<void> {
     network: "testnet",
     maxTtlBlocks: config.maxTtlBlocks,
   });
-  const server = createRelayerHttpServer(relayer, {
-    ...(config.apiToken === undefined ? {} : { apiToken: config.apiToken }),
-  });
+  const server = createRelayerHttpServer(
+    relayer,
+    config.apiToken === undefined ? {} : { apiToken: config.apiToken },
+  );
 
   const listening = Promise.withResolvers<void>();
   server.once("error", listening.reject);
