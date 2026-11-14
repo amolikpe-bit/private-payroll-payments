@@ -17,9 +17,9 @@ node scripts/w4-dry-run.ts
 
 Prerequisites:
 
-- Node.js `>=26.0.0` runs the `.ts` script directly (the repo engine; type stripping).
+- Node.js `>=26.0.0` runs the `.ts` script directly (the repo engine, with type stripping).
 - Network access to `https://1click.chaindefuser.com` is needed for quote requests and the payout preflight's token/quote lookups.
-- No environment variables are required. `ONECLICK_API_KEY` and `ONECLICK_USER_SESSION` are ignored; the client uses an empty API key and an anonymous transport.
+- No environment variables are required. `ONECLICK_API_KEY` and `ONECLICK_USER_SESSION` are ignored. The client uses an empty API key and an anonymous transport.
 
 The settlement asset is the 1Click-published USDC NEP-141 id. No NEAR RPC call is made. The only HTTP calls are `/v0/quote` (confidential and public) plus the payout preflight. The preflight reads `/v0/tokens`. It then requests a dry quote when the asset resolves.
 
@@ -52,14 +52,14 @@ Stages 1–4, 6–9 and the stage-numbering are deterministic. The live 1Click r
 | Stage | Proof |
 |---|---|
 | 1 `config` | Testnet preset, fixed 1Click host, no wallet, no key, no session, zero funds. |
-| 2 `payroll` | Three NEAR account ids pass `validateNearDestination`; `BatchPayloadBuilder` accepts the entries and preserves the aggregate. The total is not printed. |
-| 3 `commitments` | Per-cycle commitments are derived from private amounts and deterministic 32-byte salts; only public hash prefixes are printed. |
-| 4 `proof` | Each Borsh preimage is rebuilt, hashed and compared with `verifyCommitment`; a one-unit amount change is rejected. This is a commitment-preimage proof, not a Groth16 verifier run (Step 5 is out of scope). |
-| 5 `quote-gate` | One anonymous confidential dry quote and one public same-asset dry quote. A 401 is the documented User-Session gate; a 200 must be `dry: true`, signed, echo the request, and carry no deposit address. |
-| 6 `payout` | Three pending payouts are written to a temporary `PrivateStore`; `ConfidentialPayout.preflightPayout` fails closed with the refusing signer. No `executePendingPayout`/`shield` call occurs. |
+| 2 `payroll` | Three NEAR account ids pass `validateNearDestination`. `BatchPayloadBuilder` accepts the entries and preserves the aggregate. The total is not printed. |
+| 3 `commitments` | Per-cycle commitments are derived from private amounts and deterministic 32-byte salts. Only public hash prefixes are printed. |
+| 4 `proof` | Each Borsh preimage is rebuilt, hashed and compared with `verifyCommitment`. A one-unit amount change is rejected. This is a commitment-preimage proof, not a Groth16 verifier run (Step 5 is out of scope). |
+| 5 `quote-gate` | One anonymous confidential dry quote and one public same-asset dry quote. A 401 is the documented User-Session gate. A 200 must be `dry: true`, signed, echo the request, and carry no deposit address. |
+| 6 `payout` | Three pending payouts are written to a temporary `PrivateStore`. `ConfidentialPayout.preflightPayout` fails closed with the refusing signer. No `executePendingPayout`/`shield` call occurs. |
 | 7 `resume` | A sequential batch run is interrupted before batch 2, resumes from the opaque checkpoint, and processes all three payouts through local dry-request validation. |
 | 8 `receipt` | Three `createSettlementReceipt` receipts validate, map `SUCCESS` to `settled`, carry the commitment digest as `metadataDigest`, and contain no view key. The intent hash is a deterministic fixture because no intent is submitted. |
-| 9 `redaction` | `redactDeep` removes employee, amount, salt, deposit address and deposit memo; `redactError` removes the same labels from message and stack. The receipt JSON is scanned for every registered secret. |
+| 9 `redaction` | `redactDeep` removes employee, amount, salt, deposit address and deposit memo. `redactError` removes the same labels from message and stack. The receipt JSON is scanned for every registered secret. |
 | 10 `summary` | Counters close the run: zero secret hits, zero wet quotes, zero funds moved. |
 
 ## Failure behavior
@@ -78,6 +78,6 @@ The temporary private store is removed in a `finally` block, including on failur
 
 ## Explicit non-claims
 
-- No live settlement happened. Receipts are built from a deterministic fixture intent hash; no `/v0/generate-intent`, `/v0/submit-intent` or `/v0/status` call is made.
+- No live settlement happened. Receipts are built from a deterministic fixture intent hash. No `/v0/generate-intent`, `/v0/submit-intent` or `/v0/status` call is made.
 - No Groth16 proof is generated or verified on chain. "Proof" here means the client-side commitment preimage recomputation, matching the contract's hash.
 - The confidential quote is not fabricated. Without a User-Session the live API returns the documented 401 gate. The script asserts the gate instead of inventing a quote. The local request is still validated field by field.

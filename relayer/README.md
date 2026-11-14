@@ -8,8 +8,7 @@ Employees need no NEAR account for confidential payouts.
 No mainnet path exists. The contract id is `subrosa.testnet` on `testnet`. Any RPC URL naming mainnet is rejected.
 ## What it accepts
 
-One base64 Borsh [`SignedDelegate`](https://github.com/near/NEPs/blob/master/neps/nep-0366.md)
-per request:
+One base64 Borsh [`SignedDelegate`](https://github.com/near/NEPs/blob/master/neps/nep-0366.md) per request:
 
 ```http
 POST /v1/relay
@@ -35,7 +34,7 @@ A zero-NEAR client still needs an existing sender account with a valid regular a
 
 | Check | Rule |
 | --- | --- |
-| Network | `testnet` only; `subrosa.testnet` only |
+| Network | `testnet` only. `subrosa.testnet` only |
 | Inner actions | exactly one `FunctionCall` |
 | Methods | `register_employee`, `commit_salary`, `batch_commit_salaries` |
 | Gas | ≤ 100 TGas (register/commit), ≤ 300 TGas (batch) |
@@ -65,17 +64,13 @@ Startup rejects *function-call* gas keys: `relayMetaTransaction` targets arbitra
 Startup also rejects regular full-access keys because they silently charge gas to liquid balance.
 ## Retiring a gas key
 
-Deleting a NEP-611 gas key **burns its remaining prepaid balance**. The
-`retire-gas-key` command therefore withdraws the balance first, in a completed
-transaction, and only then deletes the key:
+Deleting a NEP-611 gas key **burns its remaining prepaid balance**. The `retire-gas-key` command therefore withdraws the balance first, in a completed transaction, and only then deletes the key:
 
 ```bash
 subrosa-relayer retire-gas-key
 ```
 
-`RELAYER_RETIRE_RESERVE_YOCTO` keeps 0.01 NEAR on the key for withdrawal and deletion fees.
-Deletion burns any remaining reserve. Protocol rejects deletions burning over 1 NEAR, so reserve caps at 1 NEAR.
-If withdrawal fails, the key stays intact and deletion never runs.
+`RELAYER_RETIRE_RESERVE_YOCTO` keeps 0.01 NEAR on the key for withdrawal and deletion fees. Deletion burns any remaining reserve. Protocol rejects deletions burning over 1 NEAR, so reserve caps at 1 NEAR. If withdrawal fails, the key stays intact and deletion never runs.
 
 ## Run
 
@@ -115,5 +110,4 @@ npm run test:relayer
 # or: cd relayer && npm test
 ```
 
-Tests cover delegate caps, policy rejections, signature verification, and inner gas-key rejection.
-They also verify FCK-allowance bounds, withdraw-before-delete order, and HTTP errors offline.
+Tests cover delegate caps, policy rejections, signature verification, and inner gas-key rejection. They also verify FCK-allowance bounds, withdraw-before-delete order, and HTTP errors offline.

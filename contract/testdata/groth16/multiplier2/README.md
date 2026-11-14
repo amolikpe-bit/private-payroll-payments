@@ -14,8 +14,7 @@ Unit tests build NEAR wire bytes from these JSON files and call `env::alt_bn128_
 | `public.json` | JSON array of decimal public signals, here `["33"]` |
 | `verification_key.json` | `{ "protocol", "curve", "nPublic", "vk_alpha_1", "vk_beta_2", "vk_gamma_2", "vk_delta_2", "vk_alphabeta_12", "IC": [...] }` |
 
-`pi_a` / `pi_c` / `IC[i]` are G1 points. `pi_b` and the `vk_*_2` values are G2
-points in snarkjs order: `[[x_re, x_im], [y_re, y_im], ["1", "0"]]`.
+`pi_a` / `pi_c` / `IC[i]` are G1 points. `pi_b` and the `vk_*_2` values are G2 points in snarkjs order: `[[x_re, x_im], [y_re, y_im], ["1", "0"]]`.
 
 ## Reproduce the fixture
 
@@ -49,8 +48,7 @@ snarkjs groth16 verify verification_key.json public.json proof.json
 
 ## NEAR wire encoding used by the contract
 
-All field elements are 32-byte **little-endian** integers; there is no
-EIP-197 big-endian encoding and no EVM `[1]`/`[0]` coordinate swap.
+All field elements are 32-byte **little-endian** integers. There is no EIP-197 big-endian encoding and no EVM `[1]`/`[0]` coordinate swap.
 
 `proof_bytes` (256 B):
 
@@ -71,9 +69,6 @@ ic_count: u32 little-endian                            4 B
 IC[0] .. IC[ic_count-1] (G1, 64 B each)
 ```
 
-The verifier negates A as `(x, p - y)`, keeping `(0, 0)` at infinity.
-It computes `vk_x = IC[0] + sum(pub[i] * IC[i+1])` via `alt_bn128_g1_multiexp` and `alt_bn128_g1_sum`.
-It then calls `alt_bn128_pairing_check` on `[(-A, B), (alpha, beta), (vk_x, gamma), (C, delta)]`.
+The verifier negates A as `(x, p - y)`, keeping `(0, 0)` at infinity. It computes `vk_x = IC[0] + sum(pub[i] * IC[i+1])` via `alt_bn128_g1_multiexp` and `alt_bn128_g1_sum`. It then calls `alt_bn128_pairing_check` on `[(-A, B), (alpha, beta), (vk_x, gamma), (C, delta)]`.
 
-This fixture is the `multiplier2` circuit, so `ic_count = 2` and the only
-public input is `"33"`.
+This fixture is the `multiplier2` circuit, so `ic_count = 2` and the only public input is `"33"`.
