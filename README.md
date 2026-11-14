@@ -9,25 +9,31 @@ sequenceDiagram
     accTitle: subrosa runtime flow
     accDescr: Employer registers workers, commits hashed salaries, verifies proofs, then pays out privately and settles payout state.
     autonumber
+    box rgba(243,232,255,0.12) On-chain settlement
     participant C as Contract
     participant R as Relayer
+    end
+    box rgba(255,244,214,0.12) Client
     participant S as SDK
     participant N as near-social
+    end
+    box rgba(230,247,235,0.12) 1Click Intents
     participant O as 1Click session
+    end
     rect rgba(226,238,255,0.20)
     Note over R,C: PHASE 1 — register worker
     S->>R: signedDelegate, register_employee
     R->>R: policy check, one FunctionCall, 100 TGas cap
-    R->>C: relay meta tx, deposit 567 B plus metadata
-    C-->>S: EmployeeRegistered
+    R->>+C: relay meta tx, deposit 567 B plus metadata
+    C-->>-S: EmployeeRegistered
     end
     rect rgba(230,247,235,0.20)
     Note over S,C: PHASE 2 — commit salary batch
     S->>S: Borsh preimage 186 B, sha256 hash
     S->>R: signedDelegate, commit_salary
-    R->>C: relay meta tx, exact 374 B deposit
+    R->>+C: relay meta tx, exact 374 B deposit
     C->>C: store hash, no amount
-    C-->>S: SalaryCommitted
+    C-->>-S: SalaryCommitted
     Note over C: one write burns 2.348758401541 TGas gross
     end
     rect rgba(255,244,214,0.20)
@@ -40,8 +46,8 @@ sequenceDiagram
     rect rgba(243,232,255,0.20)
     Note over S,C: PHASE 4 — verify commitment on chain
     opt Groth16 verifier enabled
-        S->>C: verify_proof
-        C-->>S: ProofVerified
+        S->>+C: verify_proof
+        C-->>-S: ProofVerified
     end
     end
     rect rgba(255,232,232,0.20)
@@ -51,8 +57,8 @@ sequenceDiagram
     alt no User-Session
         O-->>S: 401 gate, fail closed
     else session present
-        S->>O: /v0/auth/authenticate, /v0/submit-intent, /v0/status
-        O-->>S: SUCCESS or FAILED or REFUNDED
+        S->>+O: /v0/auth/authenticate, /v0/submit-intent, /v0/status
+        O-->>-S: SUCCESS or FAILED or REFUNDED
     end
     end
     rect rgba(224,247,250,0.20)
@@ -62,8 +68,8 @@ sequenceDiagram
     else FAILED or REFUNDED
         S->>R: mark_failed
     end
-    R->>C: relay meta tx
-    C-->>S: PayoutStateChanged
+    R->>+C: relay meta tx
+    C-->>-S: PayoutStateChanged
     S->>N: SocialDB audit entry, hashes only
     end
 ```
