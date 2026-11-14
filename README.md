@@ -225,13 +225,10 @@ SDK pins near-api-js 7.5.3, near-social-js 2.0.4, `@hot-labs/near-connect` 0.12.
 
 <!-- origin-disclosure:start -->
 This port starts from MIT-licensed `zkpayroll/zk-payroll-sdk` (https://github.com/zkpayroll/zk-payroll-sdk).
-Its `dev` HEAD `a3166417082436901aa2b66618fdaf9c6c08ae17` (1,050 files) was fetched and committed unmodified as `b7bafa51c1262bbe4322391584e3212d26c37b9a`.
 Delta to upstream `dev`: https://github.com/zkpayroll/zk-payroll-sdk/compare/a3166417082436901aa2b66618fdaf9c6c08ae17...dev
 
 Origin companion contracts carry `NOASSERTION` license metadata and are excluded. The Rust contract under `contract/` is a clean-room implementation of the documented method surface (see `ATTRIBUTION.md`).
 <!-- origin-disclosure:end -->
-
-This repository is production tooling for a port, not a hackathon entry.
 
 ## Baseline and disclosure
 
