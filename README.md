@@ -4,7 +4,7 @@ Private payroll on NEAR. Employers register workers, publish commitment hashes, 
 
 The contract records commitment hashes, payout state, audit holds, and auditor roles. It never holds funds. Settlement runs off chain on the 1Click Confidential Intents API and reports via `mark_settled` or `mark_failed`.
 
-License: MIT (see `LICENSE`, which retains the origin copyright notice, and `ATTRIBUTION.md`). Tracks: `privacy`, `realworld`. Baseline: tag `pre-hackathon` marks the imported upstream tree (`zkpayroll/zk-payroll-sdk`) at `b7bafa5`; full accounting under "Baseline and disclosure" below. Q-015 (second project on the same email): none named; cross-reference in `SUBMISSION-PREP.md`.
+License: MIT (see `LICENSE`, which retains the origin copyright notice, and `ATTRIBUTION.md`). Tracks: `privacy`, `realworld`. Baseline: tag `pre-hackathon` marks the imported upstream tree (`zkpayroll/zk-payroll-sdk`) at `b7bafa5`; full accounting under "Baseline and disclosure" below. Q-015 (second project on the same email): **krater** (AMM pool, tracks `defi`).
 
 ```mermaid
 sequenceDiagram
