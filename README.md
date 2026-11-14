@@ -21,7 +21,7 @@ sequenceDiagram
     C-->>S: EmployeeRegistered
     end
     rect rgb(230,247,235)
-    Note over S,C: PHASE 2 — commit salary
+    Note over S,C: PHASE 2 — commit salary batch
     S->>S: Borsh preimage 186 B, sha256 hash
     S->>R: signedDelegate, commit_salary
     R->>C: relay meta tx, exact 374 B deposit
@@ -30,19 +30,21 @@ sequenceDiagram
     Note over C: one write burns 2.348758401541 TGas gross
     end
     rect rgb(255,244,214)
-    Note over S,C: PHASE 3 — verify commitment
+    Note over S,C: PHASE 3 — generate and verify proof
     S->>S: rebuild Borsh preimage, compare hash
     alt amount changed
         S-->>S: reject, no proof
-    else hash matches
-        opt Groth16 verifier enabled
-            S->>C: verify_proof
-            C-->>S: ProofVerified
-        end
     end
     end
     rect rgb(243,232,255)
-    Note over S,O: PHASE 4 — private payout
+    Note over S,C: PHASE 4 — verify commitment on chain
+    opt Groth16 verifier enabled
+        S->>C: verify_proof
+        C-->>S: ProofVerified
+    end
+    end
+    rect rgb(255,232,232)
+    Note over S,O: PHASE 5 — private payout
     S->>S: schedule_payout, hold gate, destination gate
     S->>O: dry quote, no deposit address
     alt no User-Session
@@ -52,8 +54,8 @@ sequenceDiagram
         O-->>S: SUCCESS or FAILED or REFUNDED
     end
     end
-    rect rgb(255,232,232)
-    Note over S,N: PHASE 5 — settle payout
+    rect rgb(224,247,250)
+    Note over S,N: PHASE 6 — settle payout
     alt SUCCESS
         S->>R: mark_settled
     else FAILED or REFUNDED
