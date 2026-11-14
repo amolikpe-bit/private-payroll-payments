@@ -22,6 +22,7 @@
 import { SubrosaError, ValidationError } from "../core/errors.js";
 import { IdempotencyRegistry } from "../core/idempotency.js";
 import { commitmentHash as computeCommitmentHash } from "../crypto/hashUtils.js";
+import { MAX_SALT_BYTES } from "../batch/BatchPayloadBuilder.js";
 import type { ConfidentialPayout } from "../intents/ConfidentialPayout.js";
 import {
   assertIntentHash,
@@ -36,7 +37,6 @@ import type { PayoutEntry, PendingPayout } from "../types.js";
 
 const U128_MAX = (1n << 128n) - 1n;
 const SALT_PATTERN = /^(?:[0-9a-fA-F]{2})+$/;
-const MAX_SALT_BYTES = 64;
 const MAX_MEMO_BYTES = 256;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 256;
 

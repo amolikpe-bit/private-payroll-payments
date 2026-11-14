@@ -151,7 +151,7 @@ present: `schema` must be `subrosa/numbers-capture/v1`, `network` must be
 
 Step 14(c) asks for a 50-entry batch chunk/resume with zero sensitive values in
 errors. The assertion is local and needs no chain or keys; it lives in
-`packages/core/tests/numbers-redaction.test.ts` and runs with `npm test`:
+`packages/core/tests/behavior.test.ts` and runs with `npm test`:
 
 1. Builds 50 valid payout entries (unique employee/cycle pairs, 64-hex
    commitment hashes, positive u128 amounts, 32-byte hex salts).

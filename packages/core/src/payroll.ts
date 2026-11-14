@@ -10,7 +10,7 @@
 
 import { chunkPayoutBatches } from "./batch/chunking.js";
 import type { BatchPaymentEntry } from "./batch/BatchPayloadBuilder.js";
-import { BatchValidationFailedError } from "./batch/BatchPayloadBuilder.js";
+import { BatchValidationFailedError, MAX_SALT_BYTES } from "./batch/BatchPayloadBuilder.js";
 import { SubrosaError, ValidationError } from "./core/errors.js";
 import {
   IdempotencyRegistry,
@@ -46,7 +46,6 @@ import type { HoldEntry, PendingPayout } from "./types.js";
 
 const U128_MAX = (1n << 128n) - 1n;
 const SALT_PATTERN = /^(?:[0-9a-fA-F]{2})+$/;
-const MAX_SALT_BYTES = 64;
 /** Contract batch cap shared by commitment and payout chunking. */
 const PAYROLL_BATCH_SIZE = 50;
 
