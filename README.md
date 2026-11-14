@@ -302,3 +302,7 @@ or contacts a program on your behalf.
 
 MIT. See `LICENSE` (which retains the origin copyright notice) and
 `ATTRIBUTION.md`.
+
+## Hackathon
+
+Track: `privacy`. Development ends 2026-11-14T23:59:00Z (UTC).
