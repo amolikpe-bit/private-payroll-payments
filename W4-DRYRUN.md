@@ -2,7 +2,7 @@
 
 `scripts/w4-dry-run.ts` is the W4 close demo. It exercises the payroll, commitment, Confidential Intents quote-gate, payout-preflight, receipt and redaction paths.
 Run it with **no wallet, no API key, no User-Session, no deposit and no transaction**.
-The script fails closed on a credential header, a non-dry quote request or response, a deposit address on a dry quote, or any private value reaching printed output.
+The script fails closed on a credential header or a non-dry quote request or response. It also fails closed on a dry-quote deposit address or any private value that reaches printed output.
 
 The transcript below is the recorded W4 gate run on `cmp_512755789ee1` (2026-11-12). The command reproduces it.
 It complements `scripts/demo.ts` (W3 PIN 3) without importing it. W4 adds receipt construction and redaction coverage and keeps the same zero-funds invariants.
@@ -21,7 +21,7 @@ Prerequisites:
 - Network access to `https://1click.chaindefuser.com` is needed for quote requests and the payout preflight's token/quote lookups.
 - No environment variables are required. `ONECLICK_API_KEY` and `ONECLICK_USER_SESSION` are ignored; the client uses an empty API key and an anonymous transport.
 
-The settlement asset is the 1Click-published USDC NEP-141 id. No NEAR RPC call is made. The only HTTP calls are `/v0/quote` (confidential and public) plus the payout preflight, which reads `/v0/tokens` and then requests a dry quote when the asset resolves.
+The settlement asset is the 1Click-published USDC NEP-141 id. No NEAR RPC call is made. The only HTTP calls are `/v0/quote` (confidential and public) plus the payout preflight. The preflight reads `/v0/tokens`. It then requests a dry quote when the asset resolves.
 
 ## Expected transcript
 
@@ -41,7 +41,7 @@ The settlement asset is the 1Click-published USDC NEP-141 id. No NEAR RPC call i
 Stages 1–4, 6–9 and the stage-numbering are deterministic. The live 1Click result is the only variable:
 
 - **Stage 5, `publicDry`.** `dry-ok` when the public same-asset dry quote succeeds. `gated-401(documented)` when 1Click applies the documented 401 gate to the public quote as well. Both are accepted. Any other 1Click status or a non-dry response is a failure.
-- **Stage 5, `anonymousConfidential`.** `gated-401(User-Session-required)` is the current live behavior for confidential quotes without a User-Session. If 1Click later accepts the anonymous dry request, the line becomes `dry-ok` and stage 6 becomes `preflight=dry-ok`; the quote must still be dry and deposit-address free.
+- **Stage 5, `anonymousConfidential`.** `gated-401(User-Session-required)` is the current live behavior for confidential quotes without a User-Session. If 1Click later accepts the anonymous dry request, the line becomes `dry-ok`. Stage 6 becomes `preflight=dry-ok`. The quote must still be dry and deposit-address free.
 - **Stage 6 `preflight`.** `blocked-fail-closed` when the quote gate blocks the dry preflight (the expected path). `dry-ok` only when the anonymous confidential quote was accepted. The payout engine never signs and never requests a non-dry quote.
 - **Stage 10 `publicQuote`.** `ok` or `gated`, mirroring stage 5.
 
@@ -80,4 +80,4 @@ The temporary private store is removed in a `finally` block, including on failur
 
 - No live settlement happened. Receipts are built from a deterministic fixture intent hash; no `/v0/generate-intent`, `/v0/submit-intent` or `/v0/status` call is made.
 - No Groth16 proof is generated or verified on chain. "Proof" here means the client-side commitment preimage recomputation, matching the contract's hash.
-- The confidential quote is not fabricated: without a User-Session the live API returns the documented 401 gate, and the script asserts it instead of inventing a quote. The local request is still validated field by field.
+- The confidential quote is not fabricated. Without a User-Session the live API returns the documented 401 gate. The script asserts the gate instead of inventing a quote. The local request is still validated field by field.
