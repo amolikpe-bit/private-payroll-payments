@@ -99,13 +99,11 @@ Next: NEP-413 sign -> `/v0/submit-intent` -> poll -> `mark_settled` (`SUCCESS`) 
 
 ## Quickstart: do this, see that
 
-Node.js 26.0.0 or newer, then:
+Numbered repro (do X, see Y). Node.js 26.0.0 or newer, then:
 
-```bash
-npm install
-npm run build
-node examples/private-payroll-simulation.ts
-```
+1. `npm install` → workspace dependencies installed, exit 0.
+2. `npm run build` → see the `near-subrosa-core` build finish, exit 0.
+3. `node examples/private-payroll-simulation.ts` → see output ending with the three literals below.
 
 The example needs network access to `https://1click.chaindefuser.com` and nothing else. No wallet, no API key, no deposit, no transaction. Expected output ends with:
 
