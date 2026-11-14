@@ -22,7 +22,7 @@ import { ValidationError } from "../core/errors.js";
 const HOLD_SCOPES: readonly HoldScope[] = ["Employer", "Period", "Batch", "Employee"];
 
 /** Contract spelling -> origin uppercase code accepted by the contract arg. */
-const HOLD_REASON_TO_CODE: Record<HoldReason, HoldReasonCode> = {
+const REASON_TO_CODE: Record<HoldReason, HoldReasonCode> = {
   KycReviewPending: "KYC_REVIEW_PENDING",
   SanctionsScreening: "SANCTIONS_SCREENING",
   TaxWithholdingDiscrepancy: "TAX_WITHHOLDING_DISCREPANCY",
@@ -32,8 +32,7 @@ const HOLD_REASON_TO_CODE: Record<HoldReason, HoldReasonCode> = {
   Other: "OTHER",
 };
 
-const HOLD_REASON_CODES = Object.values(HOLD_REASON_TO_CODE) as readonly HoldReasonCode[];
-
+const REASON_CODES = Object.values(REASON_TO_CODE) as readonly HoldReasonCode[];
 /** Normalize either spelling of a hold reason to the uppercase contract arg. */
 export function normalizeHoldReasonCode(
   value: HoldReason | HoldReasonCode,
@@ -42,10 +41,10 @@ export function normalizeHoldReasonCode(
   if (typeof value !== "string") {
     throw new ValidationError(`${field} must be a hold reason code.`, field);
   }
-  if (Object.hasOwn(HOLD_REASON_TO_CODE, value)) {
-    return HOLD_REASON_TO_CODE[value as HoldReason];
+  if (Object.hasOwn(REASON_TO_CODE, value)) {
+    return REASON_TO_CODE[value as HoldReason];
   }
-  if ((HOLD_REASON_CODES as readonly string[]).includes(value)) {
+  if ((REASON_CODES as readonly string[]).includes(value)) {
     return value as HoldReasonCode;
   }
   throw new ValidationError(`${field} is not one of the seven closed hold reasons.`, field);

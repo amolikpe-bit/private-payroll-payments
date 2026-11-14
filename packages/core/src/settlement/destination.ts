@@ -21,8 +21,8 @@ export const MAX_NEAR_ACCOUNT_ID_LENGTH = 64;
 
 const ACCOUNT_ID_CHARSET = /^[a-z0-9._-]+$/;
 const UPPERCASE = /[A-Z]/;
-const LEADING_OR_TRAILING_SEPARATOR = /^[._-]|[._-]$/;
-const CONSECUTIVE_SEPARATORS = /[._-]{2}/;
+const EDGE_SEP = /^[._-]|[._-]$/;
+const DOUBLE_SEP = /[._-]{2}/;
 
 /** Stable rejection codes produced by the built-in account-id check. */
 export const DestinationRejectionCode = {
@@ -89,13 +89,13 @@ export function validateNearAccountId(value: unknown): NearAccountIdValidation {
       "Destination may only contain lowercase letters, digits, '.', '-', and '_'.",
     );
   }
-  if (LEADING_OR_TRAILING_SEPARATOR.test(value)) {
+  if (EDGE_SEP.test(value)) {
     return reject(
       DestinationRejectionCode.SEPARATOR,
       "Destination must not start or end with '.', '-', or '_'.",
     );
   }
-  if (CONSECUTIVE_SEPARATORS.test(value)) {
+  if (DOUBLE_SEP.test(value)) {
     return reject(
       DestinationRejectionCode.SEPARATOR,
       "Destination must not contain consecutive separators.",

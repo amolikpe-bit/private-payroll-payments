@@ -23,7 +23,7 @@ export const DEFAULT_REDACTION_REPLACEMENT = "[redacted]";
  * attached to HTTP error objects. Asset identifiers in this SDK are named
  * `asset`, never `token`.
  */
-const DEFAULT_SENSITIVE_FIELDS: readonly string[] = Object.freeze([
+const SENSITIVE_FIELDS: readonly string[] = Object.freeze([
   "recipient",
   "employee",
   "amount",
@@ -52,14 +52,14 @@ const DEFAULT_SENSITIVE_FIELDS: readonly string[] = Object.freeze([
 ]);
 
 /** A NEAR-formatted secret key (`ed25519:<base58>` / `secp256k1:<base58>`). */
-const NEAR_SECRET_KEY_PATTERN = /\b(?:ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]{40,100}\b/g;
+const KEY_PATTERN = /\b(?:ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]{40,100}\b/g;
 
-const DEFAULT_FIELD_SET: ReadonlySet<string> = new Set(DEFAULT_SENSITIVE_FIELDS);
-const DEFAULT_SENSITIVE_LOWER: ReadonlyArray<readonly [string, string]> = DEFAULT_SENSITIVE_FIELDS.map(
+const DEFAULT_FIELD_SET: ReadonlySet<string> = new Set(SENSITIVE_FIELDS);
+const SENSITIVE_LOWER: ReadonlyArray<readonly [string, string]> = SENSITIVE_FIELDS.map(
   (field) => [field, field.toLowerCase()] as const,
 );
 const FIELD_PATTERNS = new Map<string, RegExp>(
-  DEFAULT_SENSITIVE_FIELDS.map((field) => [
+  SENSITIVE_FIELDS.map((field) => [
     field,
     new RegExp(`(${escapeRegExp(field)}\\s*[:=]\\s*)([^\\s,;}\\]]+)`, "gi"),
   ]),
@@ -84,7 +84,7 @@ function buildFieldSet(options: RedactionOptions = {}): ReadonlySet<string> {
   if (!Array.isArray(additional) || additional.length === 0) {
     return DEFAULT_FIELD_SET;
   }
-  const set = new Set(DEFAULT_SENSITIVE_FIELDS);
+  const set = new Set(SENSITIVE_FIELDS);
   for (const field of additional) {
     if (typeof field === "string" && field.length > 0) {
       set.add(field);
@@ -200,7 +200,7 @@ function redactMessage(
   const lower = message.toLowerCase();
   let sanitized = message;
   if (sensitiveFields === DEFAULT_FIELD_SET) {
-    for (const [field, fieldLower] of DEFAULT_SENSITIVE_LOWER) {
+    for (const [field, fieldLower] of SENSITIVE_LOWER) {
       if (lower.includes(fieldLower)) {
         sanitized = sanitized.replace(fieldPattern(field), `$1${replacement}`);
       }
@@ -214,7 +214,7 @@ function redactMessage(
   }
   // Credentials often appear unlabelled in RPC/client error text.
   if (lower.includes("ed25519:") || lower.includes("secp256k1:")) {
-    sanitized = sanitized.replace(NEAR_SECRET_KEY_PATTERN, replacement);
+    sanitized = sanitized.replace(KEY_PATTERN, replacement);
   }
 
   if (cacheable) {
@@ -291,5 +291,5 @@ export function redactError(error: Error, options: RedactionOptions = {}): Error
  * Consumers can use this to align their own logging filters.
  */
 export function getDefaultSensitiveFields(): string[] {
-  return Array.from(DEFAULT_SENSITIVE_FIELDS);
+  return Array.from(SENSITIVE_FIELDS);
 }

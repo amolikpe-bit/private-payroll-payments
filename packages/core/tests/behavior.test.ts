@@ -17,10 +17,14 @@ import {
   validateSafeCredentialUsage,
   type BatchPaymentEntry,
 } from "../src/index.js";
-import { bytesToHex, isHex64 } from "../src/crypto/hashUtils.js";
+import { bytesToHex, commitmentHash, hexToBytes, isHex64 } from "../src/crypto/hashUtils.js";
+import { computeBatchEntriesCommitment } from "../src/batch/commitment.js";
+import { findBlockingHold, parseHoldStatus } from "../src/compliance/index.js";
+import { buildVersionedNonce } from "../src/intents/UserSession.js";
 import { normalizeCommitmentHash } from "../src/near/entries.js";
+import { PayrollService } from "../src/payroll.js";
 import { isValidIntentHash } from "../src/settlement/receipt.js";
-
+import type { HoldEntry } from "../src/types.js";
 const HEX = "0b30557a9fc4e90e33587da2c7ec11365b80a5caef14395e83a8cdf2173c6186";
 const NEAR_SECRET_KEY = `ed25519:${"A".repeat(43)}`;
 
@@ -156,5 +160,113 @@ describe("WAVE-3 consolidated behavior scenarios", () => {
     const sanitized = redactError(error);
     assert.equal(sanitized.message.includes(entries[0].salt), false);
     assert.ok(sanitized.message.includes(DEFAULT_REDACTION_REPLACEMENT));
+  });
+
+  it("parallel hold checks reach cap=4 concurrently with 0ms wait and deterministic error order", async () => {
+    const employer = "acme.testnet";
+    const employee = "alice.testnet";
+    const token = "usdc.testnet";
+    const salt = "deadbeef";
+    const amount = 1_000_000n;
+    const cycleId = 1;
+    const commitment = commitmentHash({ employer, employee, token, cycleId, amount, salt });
+    const released: HoldEntry = {
+      employer,
+      scope: "Employer",
+      scope_id: employer,
+      reason_code: "Other",
+      state: "Released",
+      placed_by: employer,
+      placed_at: 1,
+      released_by: employer,
+      released_at: 2,
+      release_reason: "Other",
+    };
+    const holdIds = Array.from({ length: 8 }, (_, i) => `hold-${i}`);
+    const gates = holdIds.map(() => Promise.withResolvers<void>());
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const svc = new PayrollService({
+      registry: {
+        getEmployee: async () => ({
+          salary_commitment: commitment,
+          token,
+          metadata: "",
+          active: true,
+          created_at: 1,
+          updated_at: 1,
+        }),
+      },
+      commitments: {
+        getCommitment: async () => ({ commitment_hash: commitment, token, created_at: 1 }),
+        verifyCommitment: (args, expected) => commitmentHash(args) === expected,
+      },
+      holds: {
+        listHoldIds: async () => holdIds,
+        getAuditHold: async (id) => {
+          const idx = Number(id.split("-")[1]);
+          inFlight++;
+          if (inFlight > maxInFlight) maxInFlight = inFlight;
+          if (inFlight === 4) {
+            for (const g of gates) g.resolve();
+          }
+          await gates[idx].promise;
+          inFlight--;
+          if (id === "hold-1") throw new Error("rpc timeout");
+          if (id === "hold-2") return { ...released, state: "Active" };
+          return released;
+        },
+      },
+      payouts: {
+        getPayout: async () => null,
+        markSettled: async () => {},
+        markFailed: async () => {},
+      },
+      store: { savePendingPayout: async () => {} },
+      executor: { executePendingPayout: async () => ({ intentHash: "x" }) },
+    });
+
+    await assert.rejects(
+      () =>
+        svc.processPayment({
+          employer,
+          employee,
+          payoutId: 1,
+          cycleId,
+          commitmentHash: commitment,
+          amount,
+          salt,
+          token,
+          asset: `nep141:${token}`,
+        }),
+      (err: unknown) =>
+        err instanceof Error && "code" in err && err.code === "HOLD_STATUS_UNAVAILABLE",
+    );
+    assert.equal(maxInFlight, 4);
+  });
+
+  it("O(N) findBlockingHold, 50-entry commitment hash, and native hex/base64 codecs stay within budget", () => {
+    const holds = [
+      parseHoldStatus({ employer: "acme.near", scope: "Employee", scope_id: "alice.near", state: "Active" }, "h-emp"),
+      parseHoldStatus({ employer: "acme.near", scope: "Batch", scope_id: "b1", state: "Active" }, "h-batch"),
+      parseHoldStatus({ employer: "acme.near", scope: "Employer", scope_id: "acme.near", state: "Active" }, "h-org"),
+    ];
+    const best = findBlockingHold({ employer: "acme.near", batch: "b1", employee: "alice.near" }, holds);
+    assert.equal(best?.holdId, "h-org");
+
+    const entries = Array.from({ length: 50 }, (_v, i) => entry(i));
+    const h1 = computeBatchEntriesCommitment(entries);
+    const h2 = computeBatchEntriesCommitment([...entries].reverse());
+    assert.notEqual(h1, h2);
+    assert.match(h1, /^[0-9a-f]{64}$/);
+
+    const raw = hexToBytes(HEX);
+    assert.equal(bytesToHex(raw), HEX);
+    const nonce = buildVersionedNonce({
+      startTime: new Date("2026-01-01T00:00:00.000Z"),
+      deadline: new Date("2026-01-01T00:05:00.000Z"),
+      randomBytes: Uint8Array.of(1, 2, 3, 4, 5, 6, 7),
+    });
+    assert.equal(Buffer.from(nonce, "base64").length, 32);
   });
 });

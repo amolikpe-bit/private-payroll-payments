@@ -27,9 +27,9 @@ import {
 } from "./constants.js";
 import { RelayerError } from "./errors.js";
 
-const ACCOUNT_ID_PATTERN = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
-const MIN_ACCOUNT_ID_LENGTH = 2;
-const MAX_ACCOUNT_ID_LENGTH = 64;
+const ID_PATTERN = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+$/;
+const MIN_ID_LEN = 2;
+const MAX_ID_LEN = 64;
 const U64_MAX = (1n << 64n) - 1n;
 const UTF8_DECODER = new TextDecoder();
 
@@ -73,9 +73,9 @@ export function assertTestnetNetwork(network: unknown): asserts network is Relay
 function assertAccountId(value: unknown, field: "sender" | "receiver"): string {
   if (
     typeof value !== "string" ||
-    value.length < MIN_ACCOUNT_ID_LENGTH ||
-    value.length > MAX_ACCOUNT_ID_LENGTH ||
-    !ACCOUNT_ID_PATTERN.test(value)
+    value.length < MIN_ID_LEN ||
+    value.length > MAX_ID_LEN ||
+    !ID_PATTERN.test(value)
   ) {
     throw new RelayerError(
       field === "sender" ? "SENDER_INVALID" : "RECEIVER_NOT_ALLOWED",
