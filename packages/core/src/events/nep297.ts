@@ -18,6 +18,7 @@
 import { SubrosaError } from "../core/errors.js";
 import { validateNearAccountId } from "../settlement/destination.js";
 import type { HoldScope, HoldState, PayoutState } from "../types.js";
+import { isHex64 } from "../crypto/hashUtils.js";
 
 /** Event standard emitted by the contract. */
 export const SUBROSA_EVENT_STANDARD = "subrosa";
@@ -176,7 +177,6 @@ export interface SubrosaEventParseResult {
   errors: EventParseError[];
 }
 
-const COMMITMENT_HASH_PATTERN = /^[0-9a-fA-F]{64}$/;
 const PAYOUT_STATES: readonly PayoutState[] = [
   "Pending",
   "Executed",
@@ -267,7 +267,7 @@ function requireAccountId(record: Record<string, unknown>, field: string, eventN
 
 function requireHash(record: Record<string, unknown>, field: string, eventName: string): string {
   const value = record[field];
-  if (typeof value !== "string" || !COMMITMENT_HASH_PATTERN.test(value)) {
+  if (typeof value !== "string" || !isHex64(value)) {
     throw new EventParseError(
       "INVALID_PAYLOAD",
       `${eventName}.${field} must be a 64-character hex string.`,

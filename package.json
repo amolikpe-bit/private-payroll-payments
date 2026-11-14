@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "npm@10.8.2",
-  "workspaces": ["packages/*", "relayer"],
+  "workspaces": [
+    "packages/*",
+    "relayer"
+  ],
   "engines": {
-    "node": ">=22.22.2"
+    "node": ">=26.0.0"
   },
   "scripts": {
     "build": "npm run -w near-subrosa-core build",
@@ -16,5 +19,8 @@
     "numbers": "npm run build && node scripts/numbers.ts",
     "check:oneclick": "node scripts/check-oneclick-schema.ts",
     "test:relayer": "npm run -w near-subrosa-relayer test"
+  },
+  "overrides": {
+    "near-kit": "0.20.2"
   }
 }

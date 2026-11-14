@@ -9,7 +9,7 @@
  */
 
 import type { HoldEntry } from "../types.js";
-import { sha256Hex } from "../crypto/hashUtils.js";
+import { sha256Hex, isHex64 } from "../crypto/hashUtils.js";
 
 /** Receipt settlement status. */
 export type ReceiptSettlementStatus = "settled" | "confirmed" | "pending" | "rejected" | "unknown";
@@ -336,7 +336,8 @@ export function isValidIntentHash(value: unknown): value is string {
   if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
     return false;
   }
-  if (/^[0-9a-fA-F]{64}$/.test(value)) {
+  const hexOk: boolean = isHex64(value);
+  if (hexOk) {
     return true;
   }
   if (value.length < 32 || value.length > 64) {
@@ -444,10 +445,6 @@ function normalizeHash64(value: unknown, code: ReceiptErrorCode, field: string):
     throw new ReceiptError(code, `${field} must be a 64-character hexadecimal digest.`);
   }
   return value.toLowerCase();
-}
-
-function isHex64(value: unknown): value is string {
-  return typeof value === "string" && /^[0-9a-fA-F]{64}$/.test(value);
 }
 
 function assertTimestamp(value: unknown, field: string): void {

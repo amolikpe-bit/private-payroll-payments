@@ -17,6 +17,7 @@ import { dirname, resolve } from "node:path";
 
 import type { PendingPayout } from "../types.js";
 import { isValidIntentHash } from "../settlement/receipt.js";
+import { isHex64 } from "../crypto/hashUtils.js";
 
 /** Current on-disk schema version. */
 export const PRIVATE_STORE_VERSION = 1;
@@ -608,10 +609,6 @@ function optionalString(value: unknown, field: string): string | undefined {
     throw new PrivateStoreError("INVALID_RECORD", `${field} must be a non-empty string.`);
   }
   return value;
-}
-
-function isHex64(value: unknown): value is string {
-  return typeof value === "string" && /^[0-9a-fA-F]{64}$/.test(value);
 }
 
 function isErrno(error: unknown, code: string): boolean {

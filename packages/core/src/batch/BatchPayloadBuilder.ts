@@ -13,6 +13,7 @@
 
 import { SubrosaError } from "../core/errors.js";
 import { validateNearAccountId } from "../settlement/destination.js";
+import { isHex64 } from "../crypto/hashUtils.js";
 
 /** Maximum value of a `u128` amount (smallest token units). */
 export const U128_MAX = (1n << 128n) - 1n;
@@ -80,7 +81,6 @@ export class BatchValidationFailedError extends SubrosaError {
 /** Intents asset-id prefixes accepted alongside plain NEP-141 account ids. */
 const INTENTS_ASSET_PREFIXES: readonly string[] = ["nep141:", "nep245:"];
 
-const COMMITMENT_HASH_PATTERN = /^[0-9a-fA-F]{64}$/;
 const HEX_PATTERN = /^[0-9a-fA-F]+$/;
 
 /**
@@ -169,7 +169,7 @@ export class BatchPayloadBuilder {
         });
       }
 
-      if (typeof entry.commitment_hash !== "string" || !COMMITMENT_HASH_PATTERN.test(entry.commitment_hash)) {
+      if (typeof entry.commitment_hash !== "string" || !isHex64(entry.commitment_hash)) {
         errors.push({
           code: "INVALID_COMMITMENT_HASH",
           message: "Commitment hash must be a 64-character hex string.",

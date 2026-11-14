@@ -11,7 +11,9 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:test": "tsc -p tsconfig.test.json",
@@ -20,16 +22,16 @@
     "clean": "node -e \"const fs=require('fs'); for (const d of ['dist','dist-test']) fs.rmSync(d,{recursive:true,force:true})\""
   },
   "dependencies": {
+    "@hot-labs/near-connect": "0.12.0",
     "near-api-js": "7.5.3",
-    "near-social-js": "2.0.4",
-    "@hot-labs/near-connect": "0.12.0"
+    "near-social-js": "2.0.4"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
-    "@types/node": "^22.0.0"
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
   },
   "engines": {
-    "node": ">=22.22.2",
+    "node": ">=26.0.0",
     "npm": ">=10.4.1"
   }
 }

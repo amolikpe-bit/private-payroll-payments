@@ -13,6 +13,7 @@
 
 import { InvalidResponseError, ValidationError } from "../core/errors.js";
 import { validateNearAccountId } from "../settlement/destination.js";
+import { isHex64 } from "../crypto/hashUtils.js";
 import type {
   CommitmentEntry,
   EmployeeEntry,
@@ -43,7 +44,6 @@ export function storageDepositNear(bytes: number): string {
   }
   return formatNearFromYocto(BigInt(bytes) * STORAGE_BYTE_COST_YOCTO);
 }
-const HEX_HASH = /^[0-9a-fA-F]{64}$/;
 
 const HOLD_SCOPES: readonly HoldScope[] = ["Employer", "Period", "Batch", "Employee"];
 const HOLD_STATES: readonly HoldState[] = ["Active", "Released"];
@@ -70,7 +70,7 @@ function invalid(method: string, detail: string): InvalidResponseError {
 
 /** Normalize a 64-hex commitment hash; reject anything else. */
 export function normalizeCommitmentHash(value: unknown, field: string): string {
-  if (typeof value !== "string" || !HEX_HASH.test(value.trim())) {
+  if (typeof value !== "string" || !isHex64(value.trim())) {
     throw new ValidationError(
       `${field} must be a 64-character hexadecimal commitment hash.`,
       field,
@@ -137,7 +137,7 @@ function record(value: unknown, method: string): Record<string, unknown> | null 
 
 function hashField(source: Record<string, unknown>, key: string, method: string): string {
   const value = stringField(source, key, method);
-  if (!HEX_HASH.test(value)) {
+  if (!isHex64(value)) {
     throw invalid(method, `"${key}" must be a 64-character hexadecimal hash`);
   }
   return value.toLowerCase();

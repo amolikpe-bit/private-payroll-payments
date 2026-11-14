@@ -105,11 +105,7 @@ export function bytesToHex(bytes: Uint8Array): string {
   if (!(bytes instanceof Uint8Array)) {
     throw new CommitmentEncodingError("INVALID_HEX", "Expected a Uint8Array.");
   }
-  let hex = "";
-  for (const byte of bytes) {
-    hex += byte.toString(16).padStart(2, "0");
-  }
-  return hex;
+  return Buffer.from(bytes).toString("hex");
 }
 
 /** SHA-256 of raw bytes or a UTF-8 string, as 64-character lowercase hex. */
